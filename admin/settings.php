@@ -1,0 +1,422 @@
+<?php
+require_once __DIR__ . '/../includes/config.php';
+require_login();
+
+if ($_SESSION['role'] !== 'admin') {
+    header('Location: /todo/index.php');
+    exit;
+}
+
+$success = '';
+$error   = '';
+$section = '';
+
+// ── Handle form submissions ────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $section = $_POST['_section'] ?? '';
+
+    // Company Info
+    if ($section === 'company') {
+        set_setting('company_name',    trim($_POST['company_name']    ?? ''));
+        set_setting('company_email',   trim($_POST['company_email']   ?? ''));
+        set_setting('company_phone',   trim($_POST['company_phone']   ?? ''));
+        set_setting('company_address', trim($_POST['company_address'] ?? ''));
+        $success = 'Company information updated.';
+    }
+
+    // Mail Settings
+    if ($section === 'mail') {
+        set_setting('mail_from', trim($_POST['mail_from'] ?? ''));
+        $success = 'Mail settings updated.';
+    }
+
+    // Timezone
+    if ($section === 'timezone') {
+        $tz = trim($_POST['timezone'] ?? '');
+        if (in_array($tz, DateTimeZone::listIdentifiers(), true)) {
+            set_setting('timezone', $tz);
+            date_default_timezone_set($tz);
+            $success = 'Timezone updated.';
+        } else {
+            $error = 'Invalid timezone selected.';
+        }
+    }
+
+    // Logo Upload
+    if ($section === 'logo') {
+        $dir = __DIR__ . '/../uploads/logo/';
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+        if (!empty($_FILES['logo']['tmp_name'])) {
+            $allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+            $finfo   = finfo_open(FILEINFO_MIME_TYPE);
+            $mime    = finfo_file($finfo, $_FILES['logo']['tmp_name']);
+            finfo_close($finfo);
+
+            if (!in_array($mime, $allowed, true)) {
+                $error = 'Only JPG, PNG, GIF or WebP images are allowed.';
+            } elseif ($_FILES['logo']['size'] > 2 * 1024 * 1024) {
+                $error = 'Logo must be under 2 MB.';
+            } else {
+                $ext      = pathinfo($_FILES['logo']['name'], PATHINFO_EXTENSION);
+                $filename = 'logo_' . time() . '.' . strtolower($ext);
+
+                // Delete old logo
+                $old = get_setting('company_logo');
+                if ($old && file_exists(__DIR__ . '/../uploads/logo/' . $old)) {
+                    @unlink(__DIR__ . '/../uploads/logo/' . $old);
+                }
+
+                if (move_uploaded_file($_FILES['logo']['tmp_name'], $dir . $filename)) {
+                    set_setting('company_logo', $filename);
+                    $success = 'Logo uploaded successfully.';
+                } else {
+                    $error = 'Upload failed. Check folder permissions.';
+                }
+            }
+        } else {
+            $error = 'No file selected.';
+        }
+    }
+
+    // Admin Profile (name)
+    if ($section === 'profile') {
+        $new_name = trim($_POST['admin_name'] ?? '');
+        if (strlen($new_name) < 2) {
+            $error = 'Name must be at least 2 characters.';
+        } else {
+            $eid = current_employee_id();
+            db()->prepare("UPDATE employees SET name=? WHERE id=?")->execute([$new_name, $eid]);
+            $_SESSION['emp_name'] = $new_name;
+            $success = 'Your name has been updated.';
+        }
+    }
+
+    // Password Change
+    if ($section === 'password') {
+        $cur  = $_POST['current_password'] ?? '';
+        $new1 = $_POST['new_password']     ?? '';
+        $new2 = $_POST['confirm_password'] ?? '';
+
+        $eid = current_employee_id();
+        $st  = db()->prepare("SELECT password FROM employees WHERE id=? LIMIT 1");
+        $st->execute([$eid]);
+        $hash = $st->fetchColumn();
+
+        if (!password_verify($cur, $hash)) {
+            $error = 'Current password is incorrect.';
+        } elseif (strlen($new1) < 8) {
+            $error = 'New password must be at least 8 characters.';
+        } elseif ($new1 !== $new2) {
+            $error = 'New passwords do not match.';
+        } else {
+            $newHash = password_hash($new1, PASSWORD_DEFAULT);
+            db()->prepare("UPDATE employees SET password=? WHERE id=?")->execute([$newHash, $eid]);
+            $success = 'Password changed successfully.';
+        }
+    }
+}
+
+// ── Load current values ────────────────────────────────────
+$cfg = [
+    'company_name'    => get_setting('company_name',    'My Company'),
+    'company_email'   => get_setting('company_email'),
+    'company_phone'   => get_setting('company_phone'),
+    'company_address' => get_setting('company_address'),
+    'mail_from'       => get_setting('mail_from'),
+    'company_logo'    => get_setting('company_logo'),
+    'timezone'        => get_setting('timezone', 'Asia/Kuala_Lumpur'),
+];
+
+$admin = db()->prepare("SELECT name, email FROM employees WHERE id=? LIMIT 1");
+$admin->execute([current_employee_id()]);
+$me = $admin->fetch();
+
+$timezones = DateTimeZone::listIdentifiers();
+
+$logo_url = $cfg['company_logo']
+    ? '/uploads/logo/' . h($cfg['company_logo'])
+    : null;
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Settings – Employee Portal</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="/assets/css/portal.css">
+<style>
+.settings-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+@media(max-width:860px){ .settings-grid{ grid-template-columns:1fr; } }
+
+.s-card {
+  background: var(--clr-surface);
+  border: 1px solid var(--clr-border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.s-card-head {
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  padding: 1rem 1.35rem;
+  border-bottom: 1px solid var(--clr-border);
+  background: rgba(125,69,154,.06);
+}
+.s-card-head i { color: var(--clr-primary); font-size: 1rem; }
+.s-card-head h3 { font-size: .9rem; font-weight: 700; color: var(--clr-text); }
+.s-card-body { padding: 1.35rem; }
+
+.fg { display: flex; flex-direction: column; gap: .3rem; margin-bottom: .9rem; }
+.fg:last-child { margin-bottom: 0; }
+.fg label { font-size: .73rem; font-weight: 600; color: var(--clr-muted); text-transform: uppercase; letter-spacing: .05em; }
+.fg input, .fg select, .fg textarea {
+  padding: .55rem .8rem;
+  background: var(--clr-bg);
+  border: 1.5px solid var(--clr-border);
+  border-radius: 8px;
+  color: var(--clr-text);
+  font-size: .85rem;
+  font-family: inherit;
+  width: 100%;
+  transition: border-color .2s, box-shadow .2s;
+}
+.fg input:focus, .fg select:focus, .fg textarea:focus {
+  outline: none;
+  border-color: var(--clr-primary);
+  box-shadow: 0 0 0 3px rgba(125,69,154,.15);
+}
+.fg textarea { resize: vertical; min-height: 72px; }
+.fg select { cursor: pointer; }
+
+.save-row { display: flex; justify-content: flex-end; padding-top: .85rem; margin-top: .85rem; border-top: 1px solid var(--clr-border); }
+
+.logo-preview {
+  width: 100px; height: 100px;
+  border: 2px dashed var(--clr-border);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: .9rem;
+  overflow: hidden;
+  background: var(--clr-bg);
+  cursor: pointer;
+  transition: border-color .2s;
+}
+.logo-preview:hover { border-color: var(--clr-primary); }
+.logo-preview img { width: 100%; height: 100%; object-fit: contain; }
+.logo-preview .no-logo { color: var(--clr-muted); text-align: center; font-size: .75rem; }
+.logo-preview .no-logo i { font-size: 2rem; display: block; margin-bottom: .3rem; opacity: .4; }
+#logo-input { display: none; }
+
+.pw-wrap { position: relative; }
+.pw-wrap input { padding-right: 2.5rem; }
+.pw-wrap .eye-btn { position: absolute; right: .7rem; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--clr-muted); }
+.pw-wrap .eye-btn:hover { color: var(--clr-primary); }
+
+.strength-bar-wrap { height: 4px; background: var(--clr-border); border-radius: 2px; margin-top: .4rem; overflow: hidden; }
+.strength-bar { height: 100%; border-radius: 2px; width: 0; transition: width .3s, background .3s; }
+
+.alert-banner {
+  padding: .8rem 1rem;
+  border-radius: 10px;
+  font-size: .83rem;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  margin-bottom: 1.5rem;
+}
+.alert-banner.ok    { background: rgba(39,174,96,.12);  border: 1px solid rgba(39,174,96,.25);  color: var(--clr-success); }
+.alert-banner.error { background: rgba(231,76,60,.12);  border: 1px solid rgba(231,76,60,.25);  color: var(--clr-danger); }
+</style>
+</head>
+<body>
+<?php include __DIR__ . '/../includes/navbar.php'; ?>
+<div class="portal-wrapper">
+  <?php include __DIR__ . '/../includes/sidebar.php'; ?>
+
+  <main class="portal-main">
+    <div class="page-header">
+      <div>
+        <h1 class="page-title"><i class="fa fa-cog"></i> Settings</h1>
+        <p class="page-sub">Manage company configuration and your account</p>
+      </div>
+    </div>
+
+    <?php if ($success): ?>
+    <div class="alert-banner ok"><i class="fa fa-check-circle"></i> <?= h($success) ?></div>
+    <?php endif; ?>
+    <?php if ($error): ?>
+    <div class="alert-banner error"><i class="fa fa-exclamation-circle"></i> <?= h($error) ?></div>
+    <?php endif; ?>
+
+    <div class="settings-grid">
+
+      <!-- Company Information -->
+      <div class="s-card">
+        <div class="s-card-head"><i class="fa fa-building"></i><h3>Company Information</h3></div>
+        <div class="s-card-body">
+          <form method="post">
+            <input type="hidden" name="_section" value="company">
+            <div class="fg"><label>Company Name</label><input type="text" name="company_name" value="<?= h($cfg['company_name']) ?>" placeholder="e.g. Creative Elements" required></div>
+            <div class="fg"><label>Company Email</label><input type="email" name="company_email" value="<?= h($cfg['company_email']) ?>" placeholder="info@company.com"></div>
+            <div class="fg"><label>Phone Number</label><input type="text" name="company_phone" value="<?= h($cfg['company_phone']) ?>" placeholder="+60 12-345 6789"></div>
+            <div class="fg"><label>Address</label><textarea name="company_address" placeholder="Street, City, State, Country"><?= h($cfg['company_address']) ?></textarea></div>
+            <div class="save-row"><button class="btn btn-primary btn-sm" type="submit"><i class="fa fa-save"></i> Save</button></div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Email Settings -->
+      <div class="s-card">
+        <div class="s-card-head"><i class="fa fa-envelope"></i><h3>Email Settings</h3></div>
+        <div class="s-card-body">
+          <form method="post">
+            <input type="hidden" name="_section" value="mail">
+            <div class="fg">
+              <label>Sending Email (From Address)</label>
+              <input type="email" name="mail_from" value="<?= h($cfg['mail_from']) ?>" placeholder="noreply@company.com">
+            </div>
+            <p style="font-size:.76rem;color:var(--clr-muted);margin-top:.25rem">This address will appear as the sender for password reset emails and system notifications.</p>
+            <div class="save-row"><button class="btn btn-primary btn-sm" type="submit"><i class="fa fa-save"></i> Save</button></div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Company Logo -->
+      <div class="s-card">
+        <div class="s-card-head"><i class="fa fa-image"></i><h3>Company Logo</h3></div>
+        <div class="s-card-body">
+          <form method="post" enctype="multipart/form-data">
+            <input type="hidden" name="_section" value="logo">
+            <div class="logo-preview" onclick="document.getElementById('logo-input').click()" id="logo-box">
+              <?php if ($logo_url): ?>
+                <img src="<?= h($logo_url) ?>" alt="Logo" id="logo-img">
+              <?php else: ?>
+                <div class="no-logo"><i class="fa fa-image"></i>Click to upload</div>
+              <?php endif; ?>
+            </div>
+            <input type="file" name="logo" id="logo-input" accept="image/*" onchange="previewLogo(this)">
+            <p style="font-size:.76rem;color:var(--clr-muted);margin-bottom:.9rem">PNG, JPG or WebP · Max 2 MB. Displayed in emails and reports.</p>
+            <div class="save-row"><button class="btn btn-primary btn-sm" type="submit"><i class="fa fa-upload"></i> Upload</button></div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Timezone -->
+      <div class="s-card">
+        <div class="s-card-head"><i class="fa fa-clock"></i><h3>Timezone</h3></div>
+        <div class="s-card-body">
+          <form method="post">
+            <input type="hidden" name="_section" value="timezone">
+            <div class="fg">
+              <label>System Timezone</label>
+              <select name="timezone">
+                <?php foreach ($timezones as $tz): ?>
+                  <option value="<?= h($tz) ?>" <?= $cfg['timezone'] === $tz ? 'selected' : '' ?>><?= h($tz) ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+            <p style="font-size:.76rem;color:var(--clr-muted);margin-top:.25rem">Current time: <strong><?= date('d M Y, h:i A') ?></strong></p>
+            <div class="save-row"><button class="btn btn-primary btn-sm" type="submit"><i class="fa fa-save"></i> Save</button></div>
+          </form>
+        </div>
+      </div>
+
+      <!-- My Profile -->
+      <div class="s-card">
+        <div class="s-card-head"><i class="fa fa-user-circle"></i><h3>My Profile</h3></div>
+        <div class="s-card-body">
+          <form method="post">
+            <input type="hidden" name="_section" value="profile">
+            <div class="fg"><label>Display Name</label><input type="text" name="admin_name" value="<?= h($me['name'] ?? '') ?>" required></div>
+            <div class="fg"><label>Email Address</label><input type="email" value="<?= h($me['email'] ?? '') ?>" disabled style="opacity:.5;cursor:not-allowed"></div>
+            <p style="font-size:.76rem;color:var(--clr-muted);margin-top:.25rem">Email cannot be changed here. Contact your database admin if needed.</p>
+            <div class="save-row"><button class="btn btn-primary btn-sm" type="submit"><i class="fa fa-save"></i> Save</button></div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Change Password -->
+      <div class="s-card">
+        <div class="s-card-head"><i class="fa fa-lock"></i><h3>Change Password</h3></div>
+        <div class="s-card-body">
+          <form method="post">
+            <input type="hidden" name="_section" value="password">
+            <div class="fg">
+              <label>Current Password</label>
+              <div class="pw-wrap">
+                <input type="password" name="current_password" id="pw0" placeholder="••••••••" required>
+                <button type="button" class="eye-btn" onclick="togglePw('pw0',this)"><i class="fa fa-eye"></i></button>
+              </div>
+            </div>
+            <div class="fg">
+              <label>New Password</label>
+              <div class="pw-wrap">
+                <input type="password" name="new_password" id="pw1" placeholder="Min. 8 characters" required oninput="checkStr(this.value)">
+                <button type="button" class="eye-btn" onclick="togglePw('pw1',this)"><i class="fa fa-eye"></i></button>
+              </div>
+              <div class="strength-bar-wrap"><div class="strength-bar" id="sb"></div></div>
+            </div>
+            <div class="fg">
+              <label>Confirm New Password</label>
+              <div class="pw-wrap">
+                <input type="password" name="confirm_password" id="pw2" placeholder="Repeat new password" required>
+                <button type="button" class="eye-btn" onclick="togglePw('pw2',this)"><i class="fa fa-eye"></i></button>
+              </div>
+            </div>
+            <div class="save-row"><button class="btn btn-primary btn-sm" type="submit"><i class="fa fa-key"></i> Change Password</button></div>
+          </form>
+        </div>
+      </div>
+
+    </div><!-- /settings-grid -->
+  </main>
+</div>
+
+<script>
+function togglePw(id, btn) {
+  var inp = document.getElementById(id);
+  var ic  = btn.querySelector('i');
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+  ic.className = inp.type === 'password' ? 'fa fa-eye' : 'fa fa-eye-slash';
+}
+
+function checkStr(v) {
+  var bar = document.getElementById('sb');
+  var s = 0;
+  if (v.length >= 8)          s++;
+  if (/[A-Z]/.test(v))        s++;
+  if (/[0-9]/.test(v))        s++;
+  if (/[^A-Za-z0-9]/.test(v)) s++;
+  var c = ['#e74c3c','#e67e22','#f39c12','#27ae60'];
+  var w = ['25%','50%','75%','100%'];
+  bar.style.width      = s > 0 ? w[s-1] : '0';
+  bar.style.background = s > 0 ? c[s-1] : '';
+}
+
+function previewLogo(input) {
+  if (!input.files || !input.files[0]) return;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var box = document.getElementById('logo-box');
+    box.innerHTML = '<img src="' + e.target.result + '" alt="Preview" style="width:100%;height:100%;object-fit:contain">';
+  };
+  reader.readAsDataURL(input.files[0]);
+}
+
+// Auto-scroll to the saved section after submit
+<?php if ($success || $error): ?>
+document.querySelector('.alert-banner').scrollIntoView({ behavior: 'smooth', block: 'center' });
+<?php endif; ?>
+</script>
+</body>
+</html>

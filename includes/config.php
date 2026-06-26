@@ -148,6 +148,29 @@ function generate_daily_checklist(int $eid, string $date): void {
     }
 }
 
+// ── Company Settings helpers ───────────────────────────────
+function get_setting(string $key, string $default = ''): string {
+    static $cache = [];
+    if (!isset($cache[$key])) {
+        try {
+            $st = db()->prepare("SELECT setting_value FROM company_settings WHERE setting_key=? LIMIT 1");
+            $st->execute([$key]);
+            $val = $st->fetchColumn();
+            $cache[$key] = $val !== false ? $val : $default;
+        } catch (PDOException $e) {
+            return $default;
+        }
+    }
+    return $cache[$key];
+}
+
+function set_setting(string $key, string $value): void {
+    db()->prepare("INSERT INTO company_settings (setting_key, setting_value)
+                   VALUES (?,?)
+                   ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)")
+       ->execute([$key, $value]);
+}
+
 // Run login tracking on every page load if logged in
 if (current_employee_id()) {
     record_login();

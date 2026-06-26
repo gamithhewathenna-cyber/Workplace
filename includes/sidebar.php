@@ -42,6 +42,9 @@ $emp_role = $_SESSION['role']     ?? 'employee';
   <a href="/leave/holidays.php"   class="sidebar-link <?= is_active('/leave/holidays') ?>"><i class="fa fa-calendar-plus"></i> Holidays</a>
   <a href="/admin/reports.php"    class="sidebar-link <?= is_active('/admin/reports') ?>"><i class="fa fa-chart-bar"></i> Reports</a>
   <?php endif; ?>
+  <?php if ($_SESSION['role'] === 'admin'): ?>
+  <a href="/admin/settings.php"   class="sidebar-link <?= is_active('/admin/settings') ?>"><i class="fa fa-cog"></i> Settings</a>
+  <?php endif; ?>
 
   <!-- User footer -->
   <div class="sidebar-footer">
