@@ -21,7 +21,7 @@ $emp_role = $_SESSION['role']     ?? 'employee';
     <?php else: ?>
       <i class="fa fa-briefcase"></i>
     <?php endif; ?>
-    <span><?= h(get_setting('company_name', 'WorkPlace')) ?></span>
+    <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:1rem"><?= h(get_setting('company_name', 'Creative Elements')) ?></span>
   </a>
 
   <!-- Workspace -->
