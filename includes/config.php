@@ -148,6 +148,16 @@ function generate_daily_checklist(int $eid, string $date): void {
     }
 }
 
+// ── App Time helpers (respects admin datetime override) ────
+function app_time(): int {
+    $offset = (int)get_setting('datetime_offset_seconds', '0');
+    return time() + $offset;
+}
+
+function app_now(string $format = 'Y-m-d H:i:s'): string {
+    return date($format, app_time());
+}
+
 // ── Company Settings helpers ───────────────────────────────
 function get_setting(string $key, string $default = ''): string {
     static $cache = [];

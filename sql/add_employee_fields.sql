@@ -1,0 +1,4 @@
+ALTER TABLE `employees`
+  ADD COLUMN IF NOT EXISTS `phone`      VARCHAR(30)  DEFAULT NULL AFTER `position`,
+  ADD COLUMN IF NOT EXISTS `department` VARCHAR(100) DEFAULT NULL AFTER `phone`,
+  ADD COLUMN IF NOT EXISTS `join_date`  DATE         DEFAULT NULL AFTER `department`;

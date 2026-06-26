@@ -93,6 +93,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    // Date & Time Override
+    if ($section === 'datetime') {
+        if (isset($_POST['reset_dt'])) {
+            set_setting('datetime_offset_seconds', '0');
+            $success = 'System time reset to real server time.';
+        } else {
+            $target = trim($_POST['custom_datetime'] ?? '');
+            if ($target) {
+                $ts = strtotime($target);
+                if ($ts) {
+                    $offset = $ts - time();
+                    set_setting('datetime_offset_seconds', (string)$offset);
+                    $success = 'System date & time updated.';
+                } else {
+                    $error = 'Invalid date/time format.';
+                }
+            } else {
+                $error = 'Please enter a date and time.';
+            }
+        }
+    }
+
     // Password Change
     if ($section === 'password') {
         $cur  = $_POST['current_password'] ?? '';
@@ -375,6 +397,50 @@ $logo_url = $cfg['company_logo']
             </div>
             <div class="save-row"><button class="btn btn-primary btn-sm" type="submit"><i class="fa fa-key"></i> Change Password</button></div>
           </form>
+        </div>
+      </div>
+
+      <!-- Date & Time Override -->
+      <?php
+        $dt_offset = (int)get_setting('datetime_offset_seconds', '0');
+        $app_ts    = time() + $dt_offset;
+        $is_overridden = $dt_offset !== 0;
+      ?>
+      <div class="s-card" style="grid-column:span 2">
+        <div class="s-card-head"><i class="fa fa-calendar-clock"></i><h3>Date &amp; Time Override</h3></div>
+        <div class="s-card-body">
+          <div style="display:flex;gap:1.5rem;flex-wrap:wrap;align-items:flex-start">
+            <div style="flex:1;min-width:220px">
+              <form method="post">
+                <input type="hidden" name="_section" value="datetime">
+                <div class="fg">
+                  <label>Set System Date &amp; Time To</label>
+                  <input type="datetime-local" name="custom_datetime"
+                    value="<?= date('Y-m-d\TH:i', $app_ts) ?>">
+                </div>
+                <div class="save-row" style="gap:.5rem">
+                  <?php if ($is_overridden): ?>
+                  <button type="submit" name="reset_dt" value="1" class="btn btn-outline btn-sm">
+                    <i class="fa fa-rotate-left"></i> Reset to Real Time
+                  </button>
+                  <?php endif; ?>
+                  <button type="submit" class="btn btn-primary btn-sm"><i class="fa fa-check"></i> Apply</button>
+                </div>
+              </form>
+            </div>
+            <div style="background:var(--clr-bg);border-radius:10px;padding:1rem 1.25rem;min-width:200px">
+              <div style="font-size:.72rem;color:var(--clr-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.5rem">System Displays As</div>
+              <div style="font-size:1.4rem;font-weight:700;color:var(--clr-text)"><?= date('d M Y', $app_ts) ?></div>
+              <div style="font-size:1rem;color:var(--clr-primary);font-weight:600;margin-top:.15rem"><?= date('h:i:s A', $app_ts) ?></div>
+              <?php if ($is_overridden): ?>
+              <div style="margin-top:.5rem;font-size:.72rem;background:rgba(243,156,18,.12);color:var(--clr-warning);border-radius:6px;padding:.25rem .6rem;display:inline-block">
+                <i class="fa fa-triangle-exclamation"></i> Override active
+              </div>
+              <?php else: ?>
+              <div style="margin-top:.5rem;font-size:.72rem;color:var(--clr-muted)"><i class="fa fa-check-circle"></i> Using real server time</div>
+              <?php endif; ?>
+            </div>
+          </div>
         </div>
       </div>
 

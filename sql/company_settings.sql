@@ -11,4 +11,5 @@ INSERT IGNORE INTO `company_settings` (`setting_key`, `setting_value`) VALUES
 ('company_address', ''),
 ('mail_from',       ''),
 ('company_logo',    ''),
-('timezone',        'Asia/Kuala_Lumpur');
+('timezone',                  'Asia/Kuala_Lumpur'),
+('datetime_offset_seconds',  '0');

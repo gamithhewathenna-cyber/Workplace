@@ -41,6 +41,7 @@ $emp_role = $_SESSION['role']     ?? 'employee';
   <?php if ($is_mgr): ?>
   <!-- Management -->
   <div class="sidebar-section">Management</div>
+  <a href="/admin/employees.php"  class="sidebar-link <?= is_active('/admin/employees') ?>"><i class="fa fa-users"></i> Employees</a>
   <a href="/admin/attendance.php" class="sidebar-link <?= is_active('/admin/attendance') ?>"><i class="fa fa-user-clock"></i> Attendance</a>
   <a href="/admin/checklist.php"  class="sidebar-link <?= is_active('/admin/checklist') ?>"><i class="fa fa-list-check"></i> Checklist Setup</a>
   <a href="/admin/projects.php"   class="sidebar-link <?= is_active('/admin/projects') ?>"><i class="fa fa-project-diagram"></i> Manage Projects</a>
