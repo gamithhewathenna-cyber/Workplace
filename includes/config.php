@@ -22,8 +22,8 @@ define('UPLOAD_CERT_DIR',   __DIR__ . '/../uploads/certs/');
 define('UPLOAD_TASK_DIR',   __DIR__ . '/../uploads/tasks/');
 define('UPLOAD_URL',        '/uploads/');
 
-// ── Timezone ──────────────────────────────────────────────
-date_default_timezone_set('Asia/Kuala_Lumpur'); // adjust as needed
+// ── Timezone — Sri Lanka Standard Time (UTC+5:30) ─────────
+date_default_timezone_set('Asia/Colombo');
 
 // ── Session ───────────────────────────────────────────────
 if (session_status() === PHP_SESSION_NONE) {
@@ -151,7 +151,9 @@ function generate_daily_checklist(int $eid, string $date): void {
 // ── Mailer ────────────────────────────────────────────────
 require_once __DIR__ . '/Mailer.php';
 
-// ── App Time helpers (respects admin datetime override) ────
+// ── App Time helpers ───────────────────────────────────────
+// Uses real server time (Asia/Colombo) plus any admin override stored in DB.
+// Override is 0 by default — meaning real time is always used.
 function app_time(): int {
     $offset = (int)get_setting('datetime_offset_seconds', '0');
     return time() + $offset;
