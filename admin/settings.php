@@ -30,18 +30,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $success = 'Mail settings updated.';
     }
 
-    // Timezone
-    if ($section === 'timezone') {
-        $tz = trim($_POST['timezone'] ?? '');
-        if (in_array($tz, DateTimeZone::listIdentifiers(), true)) {
-            set_setting('timezone', $tz);
-            date_default_timezone_set($tz);
-            $success = 'Timezone updated.';
-        } else {
-            $error = 'Invalid timezone selected.';
-        }
-    }
-
     // Logo Upload
     if ($section === 'logo') {
         $dir = __DIR__ . '/../uploads/logo/';
@@ -148,14 +136,11 @@ $cfg = [
     'company_address' => get_setting('company_address'),
     'mail_from'       => get_setting('mail_from'),
     'company_logo'    => get_setting('company_logo'),
-    'timezone'        => get_setting('timezone', 'Asia/Kuala_Lumpur'),
 ];
 
 $admin = db()->prepare("SELECT name, email FROM employees WHERE id=? LIMIT 1");
 $admin->execute([current_employee_id()]);
 $me = $admin->fetch();
-
-$timezones = DateTimeZone::listIdentifiers();
 
 $logo_url = $cfg['company_logo']
     ? '/uploads/logo/' . h($cfg['company_logo'])
@@ -329,26 +314,6 @@ $logo_url = $cfg['company_logo']
             <input type="file" name="logo" id="logo-input" accept="image/*" onchange="previewLogo(this)">
             <p style="font-size:.76rem;color:var(--clr-muted);margin-bottom:.9rem">PNG, JPG or WebP · Max 2 MB. Displayed in emails and reports.</p>
             <div class="save-row"><button class="btn btn-primary btn-sm" type="submit"><i class="fa fa-upload"></i> Upload</button></div>
-          </form>
-        </div>
-      </div>
-
-      <!-- Timezone -->
-      <div class="s-card">
-        <div class="s-card-head"><i class="fa fa-clock"></i><h3>Timezone</h3></div>
-        <div class="s-card-body">
-          <form method="post">
-            <input type="hidden" name="_section" value="timezone">
-            <div class="fg">
-              <label>System Timezone</label>
-              <select name="timezone">
-                <?php foreach ($timezones as $tz): ?>
-                  <option value="<?= h($tz) ?>" <?= $cfg['timezone'] === $tz ? 'selected' : '' ?>><?= h($tz) ?></option>
-                <?php endforeach; ?>
-              </select>
-            </div>
-            <p style="font-size:.76rem;color:var(--clr-muted);margin-top:.25rem">Current time: <strong><?= date('d M Y, h:i A') ?></strong></p>
-            <div class="save-row"><button class="btn btn-primary btn-sm" type="submit"><i class="fa fa-save"></i> Save</button></div>
           </form>
         </div>
       </div>
