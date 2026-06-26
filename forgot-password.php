@@ -70,10 +70,10 @@ body {
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  background: #272727;
+  background: #050505;
 }
 .card {
-  background: #333;
+  background: #111111;
   border: 1px solid rgba(255,255,255,.08);
   border-radius: 18px;
   padding: 2.5rem 2rem;
@@ -104,7 +104,7 @@ body {
 .fi input {
   width: 100%;
   padding: .65rem .9rem .65rem 2.4rem;
-  background: #272727;
+  background: #050505;
   border: 1.5px solid rgba(255,255,255,.1);
   border-radius: 10px;
   color: #f0f0f0;
@@ -138,7 +138,7 @@ body {
 
 .reset-link-box {
   margin-top: 1rem;
-  background: #272727;
+  background: #050505;
   border: 1px solid rgba(125,69,154,.3);
   border-radius: 10px;
   padding: .75rem;
