@@ -193,3 +193,48 @@ function get_mail_error(): string {
     unset($_SESSION['_mail_error']);
     return $e;
 }
+
+/**
+ * Branded HTML email template matching the portal's dark theme.
+ *
+ * @param string $heading  Bold heading inside the card
+ * @param string $content  HTML body content
+ * @param string $btn_text Optional CTA button label
+ * @param string $btn_url  Optional CTA button URL
+ */
+function mail_template(string $heading, string $content, string $btn_text = '', string $btn_url = ''): string {
+    $company = htmlspecialchars(get_setting('company_name', 'Employee Portal'), ENT_QUOTES, 'UTF-8');
+    $logo    = get_setting('company_logo');
+    $host    = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost');
+
+    $logo_tag = $logo
+        ? '<img src="' . $host . '/uploads/logo/' . htmlspecialchars($logo, ENT_QUOTES, 'UTF-8') . '" alt="' . $company . '" style="height:36px;object-fit:contain;vertical-align:middle">'
+        : '<span style="font-size:1.1rem;font-weight:700;color:#c084fc">' . $company . '</span>';
+
+    $btn_html = ($btn_text && $btn_url)
+        ? '<p style="margin:1.75rem 0 .5rem"><a href="' . htmlspecialchars($btn_url, ENT_QUOTES, 'UTF-8') . '" style="display:inline-block;background:#7d459a;color:#fff;padding:.7rem 1.6rem;border-radius:8px;text-decoration:none;font-weight:600;font-size:.9rem">' . htmlspecialchars($btn_text, ENT_QUOTES, 'UTF-8') . '</a></p>'
+        : '';
+
+    return '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>'
+        . '<body style="font-family:Arial,sans-serif;background:#0a0a0a;margin:0;padding:2rem 1rem">'
+        . '<div style="max-width:560px;margin:0 auto">'
+
+        // Header
+        . '<div style="padding:.75rem 0 1.25rem;margin-bottom:1.25rem;border-bottom:1px solid #1e1e1e">'
+        . $logo_tag
+        . '</div>'
+
+        // Card
+        . '<div style="background:#111111;border-radius:14px;padding:2rem;color:#e8e8e8;border:1px solid #1e1e1e">'
+        . '<h2 style="margin:0 0 1.25rem;font-size:1.15rem;color:#c084fc;font-weight:700">' . $heading . '</h2>'
+        . '<div style="font-size:.9rem;line-height:1.75;color:#d0d0d0">' . $content . '</div>'
+        . $btn_html
+        . '</div>'
+
+        // Footer
+        . '<p style="text-align:center;color:#444;font-size:.72rem;margin-top:1.25rem">'
+        . 'This is an automated message from <strong style="color:#666">' . $company . '</strong>. Please do not reply to this email.'
+        . '</p>'
+
+        . '</div></body></html>';
+}

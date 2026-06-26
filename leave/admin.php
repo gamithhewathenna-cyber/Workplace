@@ -34,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                    ->execute([$leave['total_days'], $leave['employee_id'], $leave['leave_type_id'], $leave_year]);
             }
 
-            // Notify employee
+            // Notify employee (in-app)
             add_notification(
                 $leave['employee_id'],
                 'leave_' . $status,
@@ -42,6 +42,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 "Your leave request has been $status." . ($notes ? " Note: $notes" : ''),
                 '/leave/index.php'
             );
+
+            // Email employee
+            $emp_r = db()->prepare("SELECT name, email FROM employees WHERE id=? LIMIT 1");
+            $emp_r->execute([$leave['employee_id']]);
+            $emp_r = $emp_r->fetch();
+            if ($emp_r && $emp_r['email']) {
+                $color  = $status === 'approved' ? '#4ade80' : '#f87171';
+                $label  = ucfirst($status);
+                $portal = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http')
+                        . '://' . $_SERVER['HTTP_HOST'] . '/leave/index.php';
+
+                // Fetch leave type name
+                $lt = db()->prepare("SELECT name FROM leave_types WHERE id=? LIMIT 1");
+                $lt->execute([$leave['leave_type_id']]);
+                $leave_type = $lt->fetchColumn() ?: 'Leave';
+
+                $rows = '<tr><td style="padding:.4rem .75rem;color:#888;width:35%;border-bottom:1px solid #1e1e1e">Type</td>'
+                      . '<td style="padding:.4rem .75rem;border-bottom:1px solid #1e1e1e">' . htmlspecialchars($leave_type, ENT_QUOTES, 'UTF-8') . '</td></tr>'
+                      . '<tr><td style="padding:.4rem .75rem;color:#888;border-bottom:1px solid #1e1e1e">From</td>'
+                      . '<td style="padding:.4rem .75rem;border-bottom:1px solid #1e1e1e">' . date('d M Y', strtotime($leave['start_date'])) . '</td></tr>'
+                      . '<tr><td style="padding:.4rem .75rem;color:#888;border-bottom:1px solid #1e1e1e">To</td>'
+                      . '<td style="padding:.4rem .75rem;border-bottom:1px solid #1e1e1e">' . date('d M Y', strtotime($leave['end_date'])) . '</td></tr>'
+                      . '<tr><td style="padding:.4rem .75rem;color:#888' . ($notes ? ';border-bottom:1px solid #1e1e1e' : '') . '">Days</td>'
+                      . '<td style="padding:.4rem .75rem' . ($notes ? ';border-bottom:1px solid #1e1e1e' : '') . '">' . $leave['total_days'] . ' day(s)</td></tr>';
+                if ($notes) {
+                    $rows .= '<tr><td style="padding:.4rem .75rem;color:#888">Notes</td>'
+                           . '<td style="padding:.4rem .75rem">' . htmlspecialchars($notes, ENT_QUOTES, 'UTF-8') . '</td></tr>';
+                }
+                $body = '<p>Hi <strong>' . htmlspecialchars($emp_r['name'], ENT_QUOTES, 'UTF-8') . '</strong>,</p>'
+                      . '<p>Your leave request has been <strong style="color:' . $color . '">' . $label . '</strong>.</p>'
+                      . '<table style="width:100%;border-collapse:collapse;background:#0d0d0d;border-radius:8px;overflow:hidden;margin:.75rem 0">' . $rows . '</table>';
+                send_mail($emp_r['email'], $emp_r['name'], 'Leave Request ' . $label,
+                    mail_template('Leave Request ' . $label, $body, 'View My Leave', $portal));
+            }
 
             flash('success', "Leave request #{$req_id} has been {$status}.");
         }

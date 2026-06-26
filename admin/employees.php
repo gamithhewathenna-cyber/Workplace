@@ -99,7 +99,25 @@ if ($action === 'reset_pw') {
         $temp_pw = substr(str_shuffle('ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#'), 0, 10);
         $hash = password_hash($temp_pw, PASSWORD_DEFAULT);
         db()->prepare("UPDATE employees SET password=? WHERE id=?")->execute([$hash, $eid]);
-        $success = 'Password reset. Share the temporary password below with the employee.';
+
+        // Email the employee their new temp password
+        $pr = db()->prepare("SELECT name, email FROM employees WHERE id=? LIMIT 1");
+        $pr->execute([$eid]);
+        $pr = $pr->fetch();
+        if ($pr && $pr['email']) {
+            $login_url = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http')
+                       . '://' . $_SERVER['HTTP_HOST'] . '/login.php';
+            $body = '<p>Hi <strong>' . htmlspecialchars($pr['name'], ENT_QUOTES, 'UTF-8') . '</strong>,</p>'
+                  . '<p>An administrator has reset your Employee Portal password.</p>'
+                  . '<p style="margin:1rem 0">Your temporary password is:</p>'
+                  . '<p style="font-size:1.4rem;font-weight:700;letter-spacing:.15em;color:#c084fc;background:#0d0d0d;padding:.75rem 1.25rem;border-radius:8px;display:inline-block">' . htmlspecialchars($temp_pw, ENT_QUOTES, 'UTF-8') . '</p>'
+                  . '<p style="margin-top:1rem;color:#888;font-size:.85rem">Please log in and change your password immediately from your profile settings.</p>';
+            send_mail($pr['email'], $pr['name'], 'Your Password Has Been Reset',
+                mail_template('Password Reset', $body, 'Log In Now', $login_url));
+            $success = 'Password reset and emailed to <strong>' . htmlspecialchars($pr['name'], ENT_QUOTES, 'UTF-8') . '</strong>. Temporary password also shown below.';
+        } else {
+            $success = 'Password reset. Share the temporary password below with the employee.';
+        }
     }
 }
 

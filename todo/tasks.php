@@ -43,6 +43,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 "/todo/task_detail.php?id=$tid"
             );
 
+            // Email assigned employee
+            $ae = db()->prepare("SELECT name, email FROM employees WHERE id=? LIMIT 1");
+            $ae->execute([$fields['assigned_to']]);
+            $ae = $ae->fetch();
+            if ($ae && $ae['email']) {
+                $due_str  = $fields['due_date'] ? date('d M Y', strtotime($fields['due_date'])) : 'Not set';
+                $task_url = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http')
+                          . '://' . $_SERVER['HTTP_HOST'] . "/todo/task_detail.php?id=$tid";
+                $rows = '<tr><td style="padding:.4rem .75rem;color:#888;width:35%;border-bottom:1px solid #1e1e1e">Task</td>'
+                      . '<td style="padding:.4rem .75rem;font-weight:600;border-bottom:1px solid #1e1e1e">' . htmlspecialchars($fields['title'], ENT_QUOTES, 'UTF-8') . '</td></tr>'
+                      . '<tr><td style="padding:.4rem .75rem;color:#888;border-bottom:1px solid #1e1e1e">Priority</td>'
+                      . '<td style="padding:.4rem .75rem;border-bottom:1px solid #1e1e1e;text-transform:capitalize">' . htmlspecialchars($fields['priority'], ENT_QUOTES, 'UTF-8') . '</td></tr>'
+                      . '<tr><td style="padding:.4rem .75rem;color:#888">Due Date</td>'
+                      . '<td style="padding:.4rem .75rem">' . $due_str . '</td></tr>';
+                if ($fields['description']) {
+                    $rows .= '<tr><td colspan="2" style="padding:.75rem .75rem 0;color:#888;font-size:.85rem">'
+                           . htmlspecialchars($fields['description'], ENT_QUOTES, 'UTF-8') . '</td></tr>';
+                }
+                $body = '<p>Hi <strong>' . htmlspecialchars($ae['name'], ENT_QUOTES, 'UTF-8') . '</strong>,</p>'
+                      . '<p>A new task has been assigned to you:</p>'
+                      . '<table style="width:100%;border-collapse:collapse;background:#0d0d0d;border-radius:8px;overflow:hidden;margin:.75rem 0">' . $rows . '</table>';
+                send_mail($ae['email'], $ae['name'], 'New Task Assigned: ' . $fields['title'],
+                    mail_template('You have a new task', $body, 'View Task', $task_url));
+            }
+
             // Handle file attachment
             if (!empty($_FILES['attachment']['name'])) {
                 $orig = basename($_FILES['attachment']['name']);
