@@ -3,7 +3,7 @@
 $uri = $_SERVER['REQUEST_URI'];
 function is_active(string $path): string {
     global $uri;
-    return str_contains($uri, $path) ? 'active' : '';
+    return strpos($uri, $path) !== false ? 'active' : '';
 }
 $is_mgr = is_manager();
 ?>
