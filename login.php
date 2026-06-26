@@ -45,26 +45,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <link rel="stylesheet" href="/assets/css/portal.css">
 <style>
-  body { display: grid; place-items: center; min-height: 100vh; background: var(--clr-bg); }
+  body { display: grid; place-items: center; min-height: 100vh; background: #272727; }
   .login-box {
-    background: var(--clr-surface);
-    border: 1px solid var(--clr-border);
-    border-radius: var(--radius);
+    background: #333333;
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 16px;
     padding: 2.5rem 2rem;
     width: 100%;
     max-width: 400px;
-    box-shadow: var(--shadow-lg);
+    box-shadow: 0 20px 60px rgba(0,0,0,.5);
   }
   .login-logo { text-align: center; margin-bottom: 1.75rem; }
-  .login-logo i { font-size: 2.5rem; color: var(--clr-primary); }
-  .login-logo h1 { font-size: 1.3rem; font-weight: 700; margin-top: .5rem; }
-  .login-logo p { color: var(--clr-muted); font-size: .85rem; }
+  .login-logo i { font-size: 2.5rem; color: #7d459a; }
+  .login-logo h1 { font-size: 1.3rem; font-weight: 700; margin-top: .5rem; color: #f0f0f0; }
+  .login-logo p { color: rgba(240,240,240,.45); font-size: .85rem; }
   .form-group { margin-bottom: 1rem; }
-  .form-group label { display: block; font-size: .8rem; font-weight: 500; color: var(--clr-muted); margin-bottom: .35rem; }
+  .form-group label { display: block; font-size: .8rem; font-weight: 600; color: rgba(240,240,240,.5); margin-bottom: .35rem; }
   .input-icon { position: relative; }
-  .input-icon i { position: absolute; left: .875rem; top: 50%; transform: translateY(-50%); color: var(--clr-muted); font-size: .85rem; }
-  .input-icon .input { padding-left: 2.25rem; }
-  .btn-block { width: 100%; justify-content: center; padding: .65rem; font-size: .95rem; margin-top: 1.25rem; }
+  .input-icon i { position: absolute; left: .875rem; top: 50%; transform: translateY(-50%); color: rgba(240,240,240,.35); font-size: .85rem; }
+  .input-icon .input { padding-left: 2.25rem; background: #272727; border: 1.5px solid rgba(255,255,255,.1); color: #f0f0f0; border-radius: 10px; }
+  .input-icon .input:focus { border-color: #7d459a; box-shadow: 0 0 0 3px rgba(125,69,154,.2); outline: none; }
+  .btn-block { width: 100%; justify-content: center; padding: .7rem; font-size: .95rem; margin-top: 1.25rem; border-radius: 10px; background: #7d459a; border-color: #7d459a; box-shadow: 0 4px 18px rgba(125,69,154,.45); }
+  .btn-block:hover { background: #6a3a84; }
 </style>
 </head>
 <body>

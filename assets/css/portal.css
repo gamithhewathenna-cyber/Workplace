@@ -1,15 +1,15 @@
 /* ============================================================
    portal.css — Employee Portal
-   Style: Dark sidebar · Warm cream bg · Amber accent · Poppins
+   Style: Dark theme · Purple accent · Poppins
    ============================================================ */
 
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
 
 :root {
   /* Brand */
-  --clr-primary:      #C9952B;
-  --clr-primary-d:    #A87820;
-  --clr-primary-light:rgba(201,149,43,.14);
+  --clr-primary:      #7d459a;
+  --clr-primary-d:    #6a3a84;
+  --clr-primary-light:rgba(125,69,154,.18);
 
   /* Semantic */
   --clr-success:  #27AE60;
@@ -18,15 +18,15 @@
   --clr-info:     #2980B9;
 
   /* Surface */
-  --clr-bg:       #EDE8DC;
-  --clr-surface:  #FFFFFF;
-  --clr-border:   #E4DDD2;
-  --clr-text:     #1C1C2E;
-  --clr-muted:    #8892A4;
+  --clr-bg:       #272727;
+  --clr-surface:  #333333;
+  --clr-border:   rgba(255,255,255,.08);
+  --clr-text:     #f0f0f0;
+  --clr-muted:    rgba(240,240,240,.45);
 
   /* Sidebar */
-  --sidebar-bg:   #1C1C2E;
-  --sidebar-text: rgba(255,255,255,.5);
+  --sidebar-bg:   #1a1a1a;
+  --sidebar-text: rgba(255,255,255,.45);
 
   --radius:       14px;
   --radius-sm:    8px;
@@ -116,7 +116,7 @@ body { font-family: var(--font); background: var(--clr-bg); color: var(--clr-tex
 .sidebar-link.active {
   background: var(--clr-primary);
   color: #fff;
-  box-shadow: 0 4px 15px rgba(201,149,43,.35);
+  box-shadow: 0 4px 15px rgba(125,69,154,.4);
 }
 .sidebar-link.active i { color: #fff; }
 
@@ -138,6 +138,7 @@ body { font-family: var(--font); background: var(--clr-bg); color: var(--clr-tex
   font-weight: 700;
   font-size: .9rem;
   flex-shrink: 0;
+  box-shadow: 0 3px 10px rgba(125,69,154,.4);
 }
 .sidebar-user-name { font-size: .82rem; font-weight: 600; color: #fff; }
 .sidebar-user-role { font-size: .72rem; color: var(--sidebar-text); }
@@ -223,7 +224,7 @@ body { font-family: var(--font); background: var(--clr-bg); color: var(--clr-tex
   font-weight: 600;
   font-size: .9rem;
   cursor: pointer;
-  box-shadow: 0 3px 10px rgba(201,149,43,.3);
+  box-shadow: 0 3px 10px rgba(125,69,154,.4);
 }
 
 /* notification panel */
@@ -262,7 +263,7 @@ body { font-family: var(--font); background: var(--clr-bg); color: var(--clr-tex
 
 /* ── Welcome Banner ──────────────────────────────────────── */
 .welcome-banner {
-  background: linear-gradient(135deg, #C9952B 0%, #E8B84B 100%);
+  background: linear-gradient(135deg, #7d459a 0%, #a05cbf 100%);
   border-radius: var(--radius);
   padding: 1.5rem 2rem;
   margin-bottom: 1.75rem;
@@ -272,7 +273,7 @@ body { font-family: var(--font); background: var(--clr-bg); color: var(--clr-tex
   gap: 1rem;
   position: relative;
   overflow: hidden;
-  box-shadow: 0 6px 24px rgba(201,149,43,.35);
+  box-shadow: 0 6px 24px rgba(125,69,154,.4);
 }
 .welcome-banner::after {
   content: '';
@@ -438,7 +439,7 @@ body { font-family: var(--font); background: var(--clr-bg); color: var(--clr-tex
 }
 .data-table td { padding: .75rem 1rem; border-bottom: 1px solid rgba(0,0,0,.04); }
 .data-table tr:last-child td { border-bottom: none; }
-.data-table tr:hover td { background: rgba(201,149,43,.04); }
+.data-table tr:hover td { background: rgba(125,69,154,.08); }
 .overdue-row td:first-child { border-left: 3px solid var(--clr-danger); }
 
 /* ── Badges ──────────────────────────────────────────────── */
@@ -492,8 +493,8 @@ body { font-family: var(--font); background: var(--clr-bg); color: var(--clr-tex
   line-height: 1;
   letter-spacing: .01em;
 }
-.btn-primary  { background: var(--clr-primary); color: #fff; border-color: var(--clr-primary); box-shadow: 0 4px 14px rgba(201,149,43,.3); }
-.btn-primary:hover  { background: var(--clr-primary-d); border-color: var(--clr-primary-d); box-shadow: 0 6px 18px rgba(201,149,43,.4); }
+.btn-primary  { background: var(--clr-primary); color: #fff; border-color: var(--clr-primary); box-shadow: 0 4px 14px rgba(125,69,154,.35); }
+.btn-primary:hover  { background: var(--clr-primary-d); border-color: var(--clr-primary-d); box-shadow: 0 6px 18px rgba(125,69,154,.45); }
 .btn-success  { background: var(--clr-success); color: #fff; }
 .btn-success:hover { filter: brightness(1.1); }
 .btn-danger   { background: var(--clr-danger);  color: #fff; }
@@ -538,11 +539,11 @@ body { font-family: var(--font); background: var(--clr-bg); color: var(--clr-tex
 /* ── Modal ───────────────────────────────────────────────── */
 .modal-overlay {
   position: fixed; inset: 0;
-  background: rgba(28,28,46,.5);
+  background: rgba(0,0,0,.65);
   display: grid; place-items: center;
   z-index: 1000;
   padding: 1rem;
-  backdrop-filter: blur(2px);
+  backdrop-filter: blur(3px);
 }
 .modal {
   background: var(--clr-surface);
