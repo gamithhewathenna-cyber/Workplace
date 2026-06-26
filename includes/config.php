@@ -7,9 +7,9 @@
 
 // ── Database ──────────────────────────────────────────────
 define('DB_HOST', 'localhost');
-define('DB_NAME', 'your_database');
-define('DB_USER', 'your_db_user');
-define('DB_PASS', 'your_db_password');
+define('DB_NAME', 'matsaqyg_Workplace');
+define('DB_USER', 'matsaqyg_Workplaceadmin');
+define('DB_PASS', 'W!YXPL1ti1o;ZQY,');
 define('DB_CHAR', 'utf8mb4');
 
 // ── Company Rules ─────────────────────────────────────────
@@ -89,9 +89,9 @@ function get_flash(string $key): string {
 }
 
 function working_days(string $start, string $end): float {
-    $holidays = db()
-        ->query("SELECT date FROM holidays WHERE date BETWEEN '$start' AND '$end'")
-        ->fetchAll(PDO::FETCH_COLUMN);
+    $st = db()->prepare("SELECT date FROM holidays WHERE date BETWEEN ? AND ?");
+    $st->execute([$start, $end]);
+    $holidays = $st->fetchAll(PDO::FETCH_COLUMN);
     $days  = 0;
     $cur   = new DateTime($start);
     $endDt = new DateTime($end);

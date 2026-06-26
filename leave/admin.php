@@ -28,9 +28,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                ->execute([$status, $eid, $notes, $req_id]);
 
             if ($status === 'approved') {
-                // Deduct from balance
+                // Deduct from balance using the year of the leave, not the filter year
+                $leave_year = (int)date('Y', strtotime($leave['start_date']));
                 db()->prepare("UPDATE leave_balances SET used = used + ? WHERE employee_id=? AND leave_type_id=? AND year=?")
-                   ->execute([$leave['total_days'], $leave['employee_id'], $leave['leave_type_id'], $year]);
+                   ->execute([$leave['total_days'], $leave['employee_id'], $leave['leave_type_id'], $leave_year]);
             }
 
             // Notify employee
@@ -138,7 +139,7 @@ $error   = get_flash('error');
     <div class="page-header">
       <h1 class="page-title"><i class="fa fa-user-shield"></i> Leave Administration</h1>
       <div class="header-actions">
-        <a href="report.php" class="btn btn-outline"><i class="fa fa-file-excel"></i> Export Report</a>
+        <a href="/admin/reports.php?report=leave&year=<?= $year ?>" class="btn btn-outline"><i class="fa fa-file-excel"></i> Export Report</a>
         <a href="holidays.php" class="btn btn-ghost"><i class="fa fa-calendar-plus"></i> Manage Holidays</a>
       </div>
     </div>

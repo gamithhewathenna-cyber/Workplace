@@ -50,11 +50,3 @@ if ($eid) {
 <style>
 #notif-panel.open { display: block !important; }
 </style>
-<script>
-const notifBtn2 = document.querySelector('.nav-notif-btn');
-const panel = document.getElementById('notif-panel');
-if (notifBtn2 && panel) {
-  notifBtn2.addEventListener('click', e => { e.stopPropagation(); panel.classList.toggle('open'); });
-  document.addEventListener('click', () => panel.classList.remove('open'));
-}
-</script>
