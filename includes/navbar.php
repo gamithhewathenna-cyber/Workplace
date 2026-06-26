@@ -7,18 +7,27 @@ if ($eid) {
     $n->execute([$eid]);
     $notifs = $n->fetchAll();
 }
-$emp_name = '';
-if ($eid) {
+$emp_name = $_SESSION['emp_name'] ?? '';
+if (!$emp_name && $eid) {
     $e = db()->prepare("SELECT name FROM employees WHERE id=?");
     $e->execute([$eid]);
-    $emp_name = $e->fetchColumn() ?? 'User';
+    $emp_name = $e->fetchColumn() ?: 'User';
+    $_SESSION['emp_name'] = $emp_name;
 }
 ?>
 <nav class="portal-navbar">
-  <button id="menu-toggle" class="btn btn-ghost btn-sm" aria-label="Menu">
+  <!-- Mobile menu toggle -->
+  <button id="menu-toggle" class="btn btn-ghost btn-sm" aria-label="Menu" style="display:none">
     <i class="fa fa-bars"></i>
   </button>
-  <span class="nav-brand"><i class="fa fa-briefcase"></i> Employee Portal</span>
+
+  <!-- Search -->
+  <div class="nav-search">
+    <i class="fa fa-search"></i>
+    <input type="text" placeholder="Search…" id="nav-search-input">
+  </div>
+
+  <div class="nav-spacer"></div>
 
   <!-- Notifications -->
   <div style="position:relative">
@@ -26,32 +35,39 @@ if ($eid) {
       <i class="fa fa-bell"></i>
       <?php if ($notifs): ?><span class="nav-notif-dot"></span><?php endif; ?>
     </button>
-    <div id="notif-panel" class="notif-panel" style="display:none; position:absolute; right:0; top:44px; width:320px; background:var(--clr-surface); border:1px solid var(--clr-border); border-radius:var(--radius); box-shadow:var(--shadow-lg); z-index:500;">
-      <div style="padding:.75rem 1rem; border-bottom:1px solid var(--clr-border); font-weight:600; font-size:.875rem;">Notifications</div>
-      <div style="max-height:360px; overflow-y:auto">
+    <div id="notif-panel" style="display:none" class="notif-panel">
+      <div style="padding:.75rem 1.25rem; border-bottom:1px solid var(--clr-border); font-weight:600; font-size:.85rem; color:var(--clr-text)">
+        Notifications <span class="badge badge-warning" style="margin-left:.35rem"><?= count($notifs) ?: '' ?></span>
+      </div>
+      <div style="max-height:340px; overflow-y:auto">
         <?php foreach ($notifs as $nt): ?>
-        <a href="<?= h($nt['link'] ?? '#') ?>" style="display:block; padding:.75rem 1rem; border-bottom:1px solid var(--clr-border); text-decoration:none; color:var(--clr-text); font-size:.85rem;">
-          <div style="font-weight:500"><?= h($nt['title']) ?></div>
-          <div style="color:var(--clr-muted); font-size:.78rem"><?= h($nt['message']) ?></div>
-          <div style="color:var(--clr-muted); font-size:.72rem; margin-top:.2rem"><?= date('d M H:i', strtotime($nt['created_at'])) ?></div>
+        <a href="<?= htmlspecialchars($nt['link'] ?? '#', ENT_QUOTES, 'UTF-8') ?>"
+           style="display:block; padding:.8rem 1.25rem; border-bottom:1px solid var(--clr-border); text-decoration:none; color:var(--clr-text); font-size:.82rem; transition:.15s"
+           onmouseover="this.style.background='var(--clr-bg)'" onmouseout="this.style.background=''">
+          <div style="font-weight:600; margin-bottom:.15rem"><?= htmlspecialchars($nt['title'], ENT_QUOTES, 'UTF-8') ?></div>
+          <div style="color:var(--clr-muted); font-size:.76rem"><?= htmlspecialchars($nt['message'], ENT_QUOTES, 'UTF-8') ?></div>
+          <div style="color:var(--clr-muted); font-size:.7rem; margin-top:.2rem"><?= date('d M · H:i', strtotime($nt['created_at'])) ?></div>
         </a>
         <?php endforeach; ?>
         <?php if (!$notifs): ?>
-          <div style="padding:1.5rem; text-align:center; color:var(--clr-muted); font-size:.85rem;">No new notifications</div>
+          <div style="padding:2rem; text-align:center; color:var(--clr-muted); font-size:.83rem">
+            <i class="fa fa-bell-slash" style="font-size:1.5rem; margin-bottom:.5rem; display:block; opacity:.4"></i>
+            No new notifications
+          </div>
         <?php endif; ?>
       </div>
     </div>
   </div>
 
-  <!-- Avatar + Logout -->
-  <div style="position:relative; display:flex; align-items:center; gap:.5rem">
-    <div class="nav-avatar" title="<?= h($emp_name) ?>"><?= strtoupper(substr($emp_name, 0, 1)) ?></div>
-    <a href="/logout.php" title="Sign Out" style="color:var(--clr-muted); font-size:1rem; text-decoration:none; padding:.3rem" aria-label="Sign Out">
-      <i class="fa fa-sign-out-alt"></i>
-    </a>
+  <!-- Avatar -->
+  <div class="nav-avatar" title="<?= htmlspecialchars($emp_name, ENT_QUOTES, 'UTF-8') ?>">
+    <?= strtoupper(substr($emp_name, 0, 1)) ?>
   </div>
 </nav>
 
 <style>
 #notif-panel.open { display: block !important; }
+@media (max-width: 768px) {
+  #menu-toggle { display: grid !important; }
+}
 </style>

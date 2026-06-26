@@ -99,21 +99,45 @@ $error   = get_flash('error');
   <?php include __DIR__ . '/../includes/sidebar.php'; ?>
 
   <main class="portal-main">
+
     <div class="page-header">
       <div>
-        <h1 class="page-title"><i class="fa fa-th-large"></i> My Workspace</h1>
+        <h1 class="page-title">Dashboard</h1>
         <p class="page-sub" id="live-clock"><?= date('l, d F Y') ?></p>
       </div>
       <div class="header-actions">
-        <a href="tasks.php" class="btn btn-primary"><i class="fa fa-plus"></i> New Task</a>
-        <a href="report.php" class="btn btn-outline <?= $reportSubmitted ? 'btn-success' : '' ?>">
-          <i class="fa fa-file-alt"></i> <?= $reportSubmitted ? 'Report Submitted' : 'Daily Report' ?>
+        <?php if (is_manager()): ?>
+          <a href="tasks.php" class="btn btn-primary"><i class="fa fa-plus"></i> Assign Task</a>
+        <?php endif; ?>
+        <a href="report.php" class="btn btn-outline">
+          <i class="fa fa-file-alt"></i> <?= $reportSubmitted ? 'Update Report' : 'Daily Report' ?>
         </a>
       </div>
     </div>
 
-    <?php if ($success): ?><div class="alert alert-success"><?= h($success) ?></div><?php endif; ?>
-    <?php if ($error):   ?><div class="alert alert-danger"><?= h($error) ?></div><?php endif; ?>
+    <?php if ($success): ?><div class="alert alert-success"><i class="fa fa-check-circle"></i> <?= h($success) ?></div><?php endif; ?>
+    <?php if ($error):   ?><div class="alert alert-danger"><i class="fa fa-exclamation-circle"></i> <?= h($error) ?></div><?php endif; ?>
+
+    <!-- Welcome Banner -->
+    <?php
+    $hour = (int)date('H');
+    $greeting = $hour < 12 ? 'Good Morning' : ($hour < 17 ? 'Good Afternoon' : 'Good Evening');
+    $emp_display = $_SESSION['emp_name'] ?? 'there';
+    ?>
+    <div class="welcome-banner">
+      <div class="welcome-text">
+        <h2><?= $greeting ?>, <?= h($emp_display) ?>!</h2>
+        <p id="live-clock-banner"><?= date('l, d F Y') ?> &nbsp;·&nbsp;
+          <?php if ($loginInfo): ?>
+            Logged in at <?= date('h:i A', strtotime($loginInfo['first_login'])) ?>
+            <?= $loginInfo['status'] === 'late' ? '&nbsp;<span style="background:rgba(255,255,255,.25);border-radius:50px;padding:.1rem .6rem;font-size:.75rem">Late by ' . $loginInfo['minutes_late'] . ' min</span>' : '' ?>
+          <?php else: ?>
+            Welcome back!
+          <?php endif; ?>
+        </p>
+      </div>
+      <div class="welcome-avatar"><?= strtoupper(substr($emp_display, 0, 1)) ?></div>
+    </div>
 
     <!-- Login Status Card -->
     <div class="cards-row">
