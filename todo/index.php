@@ -1,4 +1,7 @@
 <?php
+// TEMPORARY DEBUG — remove after fixing
+ini_set('display_errors', 1);
+error_reporting(E_ALL);
 /**
  * todo/index.php
  * Module 1 – Employee Daily Workspace Dashboard
