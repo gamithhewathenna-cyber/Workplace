@@ -43,8 +43,13 @@ if ($eid) {
     </div>
   </div>
 
-  <!-- Avatar -->
-  <div class="nav-avatar" title="<?= h($emp_name) ?>"><?= strtoupper(substr($emp_name, 0, 1)) ?></div>
+  <!-- Avatar + Logout -->
+  <div style="position:relative; display:flex; align-items:center; gap:.5rem">
+    <div class="nav-avatar" title="<?= h($emp_name) ?>"><?= strtoupper(substr($emp_name, 0, 1)) ?></div>
+    <a href="/logout.php" title="Sign Out" style="color:var(--clr-muted); font-size:1rem; text-decoration:none; padding:.3rem" aria-label="Sign Out">
+      <i class="fa fa-sign-out-alt"></i>
+    </a>
+  </div>
 </nav>
 
 <style>
