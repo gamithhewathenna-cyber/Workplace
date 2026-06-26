@@ -30,17 +30,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $reset_url = 'https://' . $_SERVER['HTTP_HOST'] . '/reset-password.php?token=' . $token;
 
-            // Try to send email
-            $subject = 'Password Reset – Employee Portal';
-            $body    = "Hi {$emp['name']},\r\n\r\n"
-                     . "Someone requested a password reset for your account.\r\n\r\n"
-                     . "Click the link below to reset your password (valid for 1 hour):\r\n"
-                     . $reset_url . "\r\n\r\n"
-                     . "If you did not request this, you can safely ignore this email.\r\n\r\n"
-                     . "– Employee Portal";
-            $headers = "From: noreply@" . $_SERVER['HTTP_HOST'];
+            $subject   = 'Password Reset – ' . get_setting('company_name', 'Employee Portal');
+            $html_body = '<!DOCTYPE html><html><body style="font-family:Poppins,sans-serif;background:#f5f5f5;padding:2rem">'
+                . '<div style="max-width:500px;margin:auto;background:#fff;border-radius:12px;padding:2rem">'
+                . '<h2 style="color:#7d459a">Password Reset</h2>'
+                . '<p>Hi <strong>' . htmlspecialchars($emp['name'], ENT_QUOTES, 'UTF-8') . '</strong>,</p>'
+                . '<p>Click the button below to reset your password. This link expires in <strong>1 hour</strong>.</p>'
+                . '<p style="margin:1.5rem 0"><a href="' . $reset_url . '" style="background:#7d459a;color:#fff;padding:.75rem 1.5rem;border-radius:8px;text-decoration:none;font-weight:600">Reset My Password</a></p>'
+                . '<p style="font-size:.82rem;color:#999">If you did not request this, ignore this email.</p>'
+                . '</div></body></html>';
 
-            $sent = @mail($email, $subject, $body, $headers);
+            $sent = send_mail($email, $emp['name'], $subject, $html_body);
 
             $msg  = $sent
                 ? 'A password reset link has been sent to your email. It expires in 1 hour.'

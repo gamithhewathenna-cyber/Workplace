@@ -103,6 +103,42 @@ if ($action === 'reset_pw') {
     }
 }
 
+// Send Email to Employee(s)
+if ($action === 'send_email') {
+    $recipients = $_POST['recipients'] ?? [];
+    $subj = trim($_POST['email_subject'] ?? '');
+    $body = trim($_POST['email_body']    ?? '');
+
+    if (!$recipients || !$subj || !$body) {
+        $error = 'Recipients, subject and message are all required.';
+    } else {
+        $sent = 0; $failed = 0;
+        foreach ($recipients as $rid) {
+            $r = db()->prepare("SELECT name,email FROM employees WHERE id=? AND status='active' LIMIT 1");
+            $r->execute([(int)$rid]);
+            $rec = $r->fetch();
+            if (!$rec) continue;
+
+            // Wrap in a simple HTML template
+            $html = '<!DOCTYPE html><html><body style="font-family:Poppins,sans-serif;background:#f5f5f5;padding:2rem">'
+                  . '<div style="max-width:600px;margin:auto;background:#fff;border-radius:12px;padding:2rem">'
+                  . '<h2 style="color:#7d459a;margin-bottom:1rem">' . htmlspecialchars(get_setting('company_name','Employee Portal'), ENT_QUOTES, 'UTF-8') . '</h2>'
+                  . '<p style="white-space:pre-wrap;line-height:1.7">' . htmlspecialchars($body, ENT_QUOTES, 'UTF-8') . '</p>'
+                  . '<hr style="margin:1.5rem 0;border:none;border-top:1px solid #eee">'
+                  . '<p style="font-size:.8rem;color:#999">This message was sent via the Employee Portal.</p>'
+                  . '</div></body></html>';
+
+            if (send_mail($rec['email'], $rec['name'], $subj, $html)) {
+                $sent++;
+            } else {
+                $failed++;
+            }
+        }
+        $success = "Sent to <strong>$sent</strong> employee(s)" . ($failed ? ", <strong>$failed</strong> failed." : '.');
+        if ($failed && !$sent) { $error = $success; $success = ''; }
+    }
+}
+
 // Delete Employee
 if ($action === 'delete') {
     $eid = (int)($_POST['emp_id'] ?? 0);
@@ -224,6 +260,9 @@ if (isset($_GET['edit'])) {
         <p class="page-sub">Manage team members and account access</p>
       </div>
       <div class="header-actions">
+        <button class="btn btn-outline" onclick="openModal('email-modal')">
+          <i class="fa fa-paper-plane"></i> Send Email
+        </button>
         <button class="btn btn-primary" onclick="openModal('add-modal')">
           <i class="fa fa-user-plus"></i> Add Employee
         </button>
@@ -396,6 +435,51 @@ if (isset($_GET['edit'])) {
   </main>
 </div>
 
+<!-- ── Send Email Modal ───────────────────────────────────── -->
+<div class="modal-overlay" id="email-modal" style="display:none" onclick="if(event.target===this)closeModal('email-modal')">
+  <div class="modal">
+    <div class="modal-header">
+      <h3><i class="fa fa-paper-plane" style="color:var(--clr-primary)"></i> Send Email to Employees</h3>
+      <button class="modal-close" onclick="closeModal('email-modal')">×</button>
+    </div>
+    <form method="post" class="modal-form">
+      <input type="hidden" name="action" value="send_email">
+      <div class="form-group" style="margin-bottom:1rem">
+        <label style="font-size:.75rem;font-weight:600;color:var(--clr-muted);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:.4rem">
+          Recipients <span style="color:var(--clr-danger)">*</span>
+        </label>
+        <div style="background:var(--clr-bg);border:1.5px solid var(--clr-border);border-radius:8px;padding:.5rem;max-height:160px;overflow-y:auto">
+          <label style="display:flex;align-items:center;gap:.5rem;padding:.3rem .5rem;cursor:pointer;font-size:.82rem;border-bottom:1px solid var(--clr-border);margin-bottom:.35rem;font-weight:600">
+            <input type="checkbox" onchange="toggleAll(this)"> Select All Active Employees
+          </label>
+          <?php
+          $active_emps = db()->query("SELECT id,name,email,role FROM employees WHERE status='active' ORDER BY name")->fetchAll();
+          foreach ($active_emps as $ae):
+          ?>
+          <label class="emp-chk" style="display:flex;align-items:center;gap:.5rem;padding:.25rem .5rem;cursor:pointer;font-size:.82rem;border-radius:6px">
+            <input type="checkbox" name="recipients[]" value="<?= $ae['id'] ?>">
+            <span style="flex:1"><?= h($ae['name']) ?></span>
+            <span style="font-size:.72rem;color:var(--clr-muted)"><?= h($ae['email']) ?></span>
+          </label>
+          <?php endforeach; ?>
+        </div>
+      </div>
+      <div class="form-group" style="margin-bottom:1rem">
+        <label style="font-size:.75rem;font-weight:600;color:var(--clr-muted);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:.4rem">Subject <span style="color:var(--clr-danger)">*</span></label>
+        <input type="text" name="email_subject" class="input" required placeholder="e.g. Company Announcement">
+      </div>
+      <div class="form-group" style="margin-bottom:1rem">
+        <label style="font-size:.75rem;font-weight:600;color:var(--clr-muted);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:.4rem">Message <span style="color:var(--clr-danger)">*</span></label>
+        <textarea name="email_body" class="input" rows="6" required placeholder="Type your message here…" style="resize:vertical"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="closeModal('email-modal')">Cancel</button>
+        <button type="submit" class="btn btn-primary"><i class="fa fa-paper-plane"></i> Send Email</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <!-- ── Add Employee Modal ──────────────────────────────────── -->
 <div class="modal-overlay" id="add-modal" style="display:none" onclick="if(event.target===this)closeModal('add-modal')">
   <div class="modal">
@@ -533,6 +617,10 @@ function openEditModal(emp) {
   document.getElementById('edit-role').value     = emp.role;
   document.getElementById('edit-status').value   = emp.status;
   openModal('edit-modal');
+}
+
+function toggleAll(cb) {
+  document.querySelectorAll('.emp-chk input[type=checkbox]').forEach(function(c){ c.checked = cb.checked; });
 }
 
 function copyTempPw() {

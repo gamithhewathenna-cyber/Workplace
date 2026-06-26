@@ -12,4 +12,11 @@ INSERT IGNORE INTO `company_settings` (`setting_key`, `setting_value`) VALUES
 ('mail_from',       ''),
 ('company_logo',    ''),
 ('timezone',                  'Asia/Kuala_Lumpur'),
-('datetime_offset_seconds',  '0');
+('datetime_offset_seconds',  '0'),
+('smtp_host',                ''),
+('smtp_port',                '587'),
+('smtp_username',            ''),
+('smtp_password',            ''),
+('smtp_encryption',          'tls'),
+('smtp_from_email',          ''),
+('smtp_from_name',           '');

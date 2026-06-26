@@ -148,6 +148,9 @@ function generate_daily_checklist(int $eid, string $date): void {
     }
 }
 
+// ── Mailer ────────────────────────────────────────────────
+require_once __DIR__ . '/Mailer.php';
+
 // ── App Time helpers (respects admin datetime override) ────
 function app_time(): int {
     $offset = (int)get_setting('datetime_offset_seconds', '0');

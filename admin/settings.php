@@ -24,10 +24,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $success = 'Company information updated.';
     }
 
-    // Mail Settings
-    if ($section === 'mail') {
-        set_setting('mail_from', trim($_POST['mail_from'] ?? ''));
-        $success = 'Mail settings updated.';
+    // SMTP Settings
+    if ($section === 'smtp') {
+        set_setting('smtp_host',       trim($_POST['smtp_host']       ?? ''));
+        set_setting('smtp_port',       trim($_POST['smtp_port']       ?? '587'));
+        set_setting('smtp_username',   trim($_POST['smtp_username']   ?? ''));
+        set_setting('smtp_encryption', trim($_POST['smtp_encryption'] ?? 'tls'));
+        set_setting('smtp_from_email', trim($_POST['smtp_from_email'] ?? ''));
+        set_setting('smtp_from_name',  trim($_POST['smtp_from_name']  ?? ''));
+        // Only overwrite password if a new one was entered
+        if (!empty($_POST['smtp_password'])) {
+            set_setting('smtp_password', $_POST['smtp_password']);
+        }
+        $success = 'SMTP settings saved.';
+    }
+
+    // Send Test Email
+    if ($section === 'smtp_test') {
+        $to = trim($_POST['test_email'] ?? '');
+        if (!filter_var($to, FILTER_VALIDATE_EMAIL)) {
+            $error = 'Enter a valid email address for the test.';
+        } else {
+            $ok = send_mail($to, $to, 'SMTP Test – Employee Portal',
+                '<h2 style="font-family:Poppins,sans-serif">SMTP is working!</h2>'
+                . '<p style="font-family:Poppins,sans-serif">This is a test email from your Employee Portal.</p>'
+            );
+            $success = $ok ? "Test email sent to <strong>$to</strong> successfully." : 'Failed: ' . get_mail_error();
+            if (!$ok) $error = $success; $success = '';
+        }
     }
 
     // Logo Upload
@@ -136,6 +160,12 @@ $cfg = [
     'company_address' => get_setting('company_address'),
     'mail_from'       => get_setting('mail_from'),
     'company_logo'    => get_setting('company_logo'),
+    'smtp_host'       => get_setting('smtp_host'),
+    'smtp_port'       => get_setting('smtp_port', '587'),
+    'smtp_username'   => get_setting('smtp_username'),
+    'smtp_encryption' => get_setting('smtp_encryption', 'tls'),
+    'smtp_from_email' => get_setting('smtp_from_email'),
+    'smtp_from_name'  => get_setting('smtp_from_name'),
 ];
 
 $admin = db()->prepare("SELECT name, email FROM employees WHERE id=? LIMIT 1");
@@ -282,19 +312,81 @@ $logo_url = $cfg['company_logo']
         </div>
       </div>
 
-      <!-- Email Settings -->
-      <div class="s-card">
-        <div class="s-card-head"><i class="fa fa-envelope"></i><h3>Email Settings</h3></div>
+      <!-- SMTP Configuration (spans full width) -->
+      <div class="s-card" style="grid-column:span 2">
+        <div class="s-card-head"><i class="fa fa-paper-plane"></i><h3>SMTP Email Configuration</h3></div>
         <div class="s-card-body">
-          <form method="post">
-            <input type="hidden" name="_section" value="mail">
-            <div class="fg">
-              <label>Sending Email (From Address)</label>
-              <input type="email" name="mail_from" value="<?= h($cfg['mail_from']) ?>" placeholder="noreply@company.com">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;flex-wrap:wrap">
+
+            <!-- SMTP Credentials -->
+            <form method="post">
+              <input type="hidden" name="_section" value="smtp">
+              <div style="font-size:.78rem;font-weight:700;color:var(--clr-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.85rem">Server Settings</div>
+              <div class="fg">
+                <label>SMTP Host</label>
+                <input type="text" name="smtp_host" class="fg-input" value="<?= h($cfg['smtp_host']) ?>" placeholder="smtp.gmail.com">
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem">
+                <div class="fg">
+                  <label>Port</label>
+                  <input type="number" name="smtp_port" value="<?= h($cfg['smtp_port']) ?>" placeholder="587">
+                </div>
+                <div class="fg">
+                  <label>Encryption</label>
+                  <select name="smtp_encryption">
+                    <option value="tls"  <?= $cfg['smtp_encryption']==='tls'?'selected':'' ?>>TLS (STARTTLS) – 587</option>
+                    <option value="ssl"  <?= $cfg['smtp_encryption']==='ssl'?'selected':'' ?>>SSL/SMTPS – 465</option>
+                    <option value="none" <?= $cfg['smtp_encryption']==='none'?'selected':'' ?>>None – 25</option>
+                  </select>
+                </div>
+              </div>
+              <div class="fg">
+                <label>SMTP Username</label>
+                <input type="text" name="smtp_username" value="<?= h($cfg['smtp_username']) ?>" placeholder="your@gmail.com" autocomplete="off">
+              </div>
+              <div class="fg">
+                <label>SMTP Password <small style="color:var(--clr-muted)">(leave blank to keep current)</small></label>
+                <div class="pw-wrap">
+                  <input type="password" name="smtp_password" id="smtp-pw" placeholder="••••••••" autocomplete="new-password">
+                  <button type="button" class="eye-btn" onclick="togglePw('smtp-pw',this)"><i class="fa fa-eye"></i></button>
+                </div>
+              </div>
+              <div class="fg">
+                <label>From Email</label>
+                <input type="email" name="smtp_from_email" value="<?= h($cfg['smtp_from_email']) ?>" placeholder="noreply@company.com">
+              </div>
+              <div class="fg">
+                <label>From Name</label>
+                <input type="text" name="smtp_from_name" value="<?= h($cfg['smtp_from_name']) ?>" placeholder="Creative Elements Portal">
+              </div>
+              <div class="save-row"><button class="btn btn-primary btn-sm" type="submit"><i class="fa fa-save"></i> Save SMTP Settings</button></div>
+            </form>
+
+            <!-- Test & Tips -->
+            <div>
+              <div style="font-size:.78rem;font-weight:700;color:var(--clr-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.85rem">Send Test Email</div>
+              <form method="post" style="margin-bottom:1.5rem">
+                <input type="hidden" name="_section" value="smtp_test">
+                <div class="fg">
+                  <label>Send Test To</label>
+                  <input type="email" name="test_email" value="<?= h($_SESSION['emp_name'] ?? '') ?>" placeholder="you@gmail.com">
+                </div>
+                <div class="save-row"><button class="btn btn-outline btn-sm" type="submit"><i class="fa fa-paper-plane"></i> Send Test Email</button></div>
+              </form>
+
+              <div style="background:var(--clr-bg);border-radius:10px;padding:1rem;font-size:.78rem;color:var(--clr-muted);line-height:1.7">
+                <div style="font-weight:700;color:var(--clr-text);margin-bottom:.5rem"><i class="fa fa-circle-info" style="color:var(--clr-primary)"></i> Quick Setup Guide</div>
+                <strong style="color:var(--clr-text)">Gmail:</strong><br>
+                Host: <code>smtp.gmail.com</code> · Port: <code>587</code> · TLS<br>
+                Use an <a href="https://myaccount.google.com/apppasswords" target="_blank" style="color:var(--clr-primary)">App Password</a> (not your regular Gmail password).<br><br>
+                <strong style="color:var(--clr-text)">Outlook / Hotmail:</strong><br>
+                Host: <code>smtp.office365.com</code> · Port: <code>587</code> · TLS<br><br>
+                <strong style="color:var(--clr-text)">cPanel Mail:</strong><br>
+                Host: <code>mail.yourdomain.com</code> · Port: <code>465</code> · SSL
+              </div>
             </div>
-            <p style="font-size:.76rem;color:var(--clr-muted);margin-top:.25rem">This address will appear as the sender for password reset emails and system notifications.</p>
-            <div class="save-row"><button class="btn btn-primary btn-sm" type="submit"><i class="fa fa-save"></i> Save</button></div>
-          </form>
+
+          </div>
         </div>
       </div>
 
