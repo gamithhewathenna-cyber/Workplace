@@ -13,9 +13,15 @@ $emp_role = $_SESSION['role']     ?? 'employee';
 <nav class="portal-sidebar">
 
   <!-- Brand -->
+  <?php $logo = get_setting('company_logo'); ?>
   <a href="/todo/index.php" class="sidebar-brand">
-    <i class="fa fa-briefcase"></i>
-    <span>WorkPlace</span>
+    <?php if ($logo): ?>
+      <img src="/uploads/logo/<?= h($logo) ?>" alt="Logo"
+           style="width:32px;height:32px;object-fit:contain;border-radius:6px;flex-shrink:0">
+    <?php else: ?>
+      <i class="fa fa-briefcase"></i>
+    <?php endif; ?>
+    <span><?= h(get_setting('company_name', 'WorkPlace')) ?></span>
   </a>
 
   <!-- Workspace -->
