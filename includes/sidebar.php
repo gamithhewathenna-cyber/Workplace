@@ -31,7 +31,6 @@ $emp_role = $_SESSION['role']     ?? 'employee';
   <a href="/todo/projects.php"    class="sidebar-link <?= is_active('/todo/projects') ?>"><i class="fa fa-folder-open"></i> Projects</a>
   <a href="/todo/time_track.php"  class="sidebar-link <?= is_active('/todo/time_track') ?>"><i class="fa fa-stopwatch"></i> Time Tracker</a>
   <a href="/todo/report.php"      class="sidebar-link <?= is_active('/todo/report') ?>"><i class="fa fa-file-alt"></i> Daily Report</a>
-  <a href="/todo/performance.php" class="sidebar-link <?= is_active('/todo/performance') ?>"><i class="fa fa-chart-line"></i> My Performance</a>
 
   <!-- Leave -->
   <div class="sidebar-section">Leave</div>
@@ -42,6 +41,7 @@ $emp_role = $_SESSION['role']     ?? 'employee';
   <!-- Management -->
   <div class="sidebar-section">Management</div>
   <a href="/admin/employees.php"  class="sidebar-link <?= is_active('/admin/employees') ?>"><i class="fa fa-users"></i> Employees</a>
+  <a href="/admin/clients.php"    class="sidebar-link <?= is_active('/admin/clients') ?>"><i class="fa fa-building"></i> Clients</a>
   <a href="/admin/attendance.php" class="sidebar-link <?= is_active('/admin/attendance') ?>"><i class="fa fa-user-clock"></i> Attendance</a>
   <a href="/admin/checklist.php"  class="sidebar-link <?= is_active('/admin/checklist') ?>"><i class="fa fa-list-check"></i> Checklist Setup</a>
   <a href="/admin/projects.php"   class="sidebar-link <?= is_active('/admin/projects') ?>"><i class="fa fa-project-diagram"></i> Manage Projects</a>
