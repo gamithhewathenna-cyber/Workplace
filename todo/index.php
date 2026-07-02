@@ -16,6 +16,7 @@ $loginLog->execute([$eid, $today]);
 $loginInfo = $loginLog->fetch();
 
 // ── Checklist ──────────────────────────────────────────────
+generate_daily_checklist($eid, $today);
 $checklist = db()->prepare("
     SELECT dc.id, ct.title, dc.is_completed, dc.completed_at
     FROM daily_checklist dc

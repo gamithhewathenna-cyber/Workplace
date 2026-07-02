@@ -141,7 +141,19 @@ function record_login(): void {
 }
 
 function generate_daily_checklist(int $eid, string $date): void {
-    $templates = db()->query("SELECT id FROM checklist_templates WHERE is_active=1")->fetchAll(PDO::FETCH_COLUMN);
+    $tpl = db()->prepare("
+        SELECT ct.id FROM checklist_templates ct
+        WHERE ct.is_active = 1
+          AND (
+            ct.scope = 'all'
+            OR EXISTS (
+              SELECT 1 FROM checklist_template_assignees cta
+              WHERE cta.template_id = ct.id AND cta.employee_id = ?
+            )
+          )
+    ");
+    $tpl->execute([$eid]);
+    $templates = $tpl->fetchAll(PDO::FETCH_COLUMN);
     $ins = db()->prepare("INSERT IGNORE INTO daily_checklist (template_id,employee_id,check_date) VALUES (?,?,?)");
     foreach ($templates as $tid) {
         $ins->execute([$tid, $eid, $date]);
