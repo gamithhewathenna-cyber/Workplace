@@ -29,7 +29,7 @@ $emp_role = $_SESSION['role']     ?? 'employee';
   <a href="/todo/index.php"       class="sidebar-link <?= is_active('/todo/index') ?>"><i class="fa fa-th-large"></i> Dashboard</a>
   <a href="/todo/tasks.php"       class="sidebar-link <?= is_active('/todo/tasks') ?>"><i class="fa fa-clipboard-list"></i> My Tasks</a>
   <a href="/todo/projects.php"    class="sidebar-link <?= is_active('/todo/projects') ?>"><i class="fa fa-folder-open"></i> Projects</a>
-  <a href="/todo/time_track.php"  class="sidebar-link <?= is_active('/todo/time_track') ?>"><i class="fa fa-stopwatch"></i> Time Tracker</a>
+  <a href="/todo/time_track.php"  class="sidebar-link <?= is_active('/todo/time_track') ?>"><i class="fa fa-clock"></i> Monthly Time</a>
   <a href="/todo/report.php"      class="sidebar-link <?= is_active('/todo/report') ?>"><i class="fa fa-file-alt"></i> Daily Report</a>
 
   <!-- Leave -->

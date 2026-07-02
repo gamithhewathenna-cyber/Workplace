@@ -237,7 +237,6 @@ $error   = get_flash('error');
               </td>
               <td>
                 <a href="task_detail.php?id=<?= $t['id'] ?>" class="btn btn-xs"><i class="fa fa-eye"></i></a>
-                <a href="time_track.php?task=<?= $t['id'] ?>" class="btn btn-xs btn-outline" title="Track Time"><i class="fa fa-stopwatch"></i></a>
                 <?php if ($isAdmin): ?>
                 <form method="post" style="display:inline">
                   <input type="hidden" name="action" value="delete_task">

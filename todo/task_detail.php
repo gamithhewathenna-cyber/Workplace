@@ -108,7 +108,6 @@ $error   = get_flash('error');
         <h1 class="page-title" style="margin-top:.25rem"><?= h($task['title']) ?></h1>
       </div>
       <div class="header-actions">
-        <a href="time_track.php?task=<?= $tid ?>" class="btn btn-outline"><i class="fa fa-stopwatch"></i> Track Time</a>
         <?php if ($isAdmin): ?>
         <form method="post" style="display:inline">
           <input type="hidden" name="action" value="delete_task">

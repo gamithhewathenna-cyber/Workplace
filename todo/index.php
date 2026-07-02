@@ -319,7 +319,6 @@ $error   = get_flash('error');
           </div>
           <div class="task-card-footer">
             <a href="task_detail.php?id=<?= $t['id'] ?>" class="btn btn-xs"><i class="fa fa-eye"></i> View</a>
-            <a href="time_track.php?task=<?= $t['id'] ?>" class="btn btn-xs btn-outline"><i class="fa fa-stopwatch"></i> Track</a>
           </div>
         </div>
         <?php endforeach; ?>
