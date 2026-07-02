@@ -25,43 +25,13 @@ $live_sessions = db()->query("
     ORDER BY tt.started_at ASC
 ")->fetchAll();
 
-$live_emp_ids = array_column($live_sessions, 'emp_id');
-
-// ── Employee workload ──────────────────────────────────────
+// ── Active employees ─────────────────────────────────────────
 $employees = db()->query("
-    SELECT e.id, e.name, e.position, e.department, e.role,
-        COUNT(DISTINCT CASE WHEN t.status NOT IN ('completed','cancelled') THEN t.id END) AS open_tasks,
-        COUNT(DISTINCT CASE WHEN t.status = 'in_progress' THEN t.id END) AS in_progress_tasks,
-        COUNT(DISTINCT CASE WHEN t.status = 'completed' THEN t.id END) AS completed_tasks,
-        COALESCE((
-            SELECT ROUND(SUM(tt.total_seconds) / 3600, 1)
-            FROM time_tracking tt
-            WHERE tt.employee_id = e.id AND tt.status = 'finished'
-              AND tt.started_at >= DATE_FORMAT(NOW(), '%Y-%m-01')
-        ), 0) AS hours_month,
-        (SELECT MAX(tt2.started_at) FROM time_tracking tt2 WHERE tt2.employee_id = e.id) AS last_active
-    FROM employees e
-    LEFT JOIN tasks t ON t.assigned_to = e.id
-    WHERE e.status = 'active'
-    GROUP BY e.id, e.name, e.position, e.department, e.role
-    ORDER BY in_progress_tasks DESC, open_tasks DESC, e.name ASC
+    SELECT id, name, position, role
+    FROM employees
+    WHERE status = 'active'
+    ORDER BY name ASC
 ")->fetchAll();
-
-// ── All open tasks grouped by employee ────────────────────
-$all_open = db()->query("
-    SELECT t.id, t.title, t.status, t.priority, t.due_date,
-           t.assigned_to, t.estimated_hours,
-           c.name AS client_name
-    FROM tasks t
-    LEFT JOIN clients c ON c.id = t.client_id
-    WHERE t.status NOT IN ('completed','cancelled')
-    ORDER BY FIELD(t.priority,'critical','high','medium','low'), t.due_date ASC
-")->fetchAll();
-
-$tasks_by_emp = [];
-foreach ($all_open as $t) {
-    $tasks_by_emp[(int)$t['assigned_to']][] = $t;
-}
 
 $today  = date('Y-m-d');
 $now_ts = time();
@@ -85,27 +55,6 @@ foreach ($checklist_rows->fetchAll() as $r) {
     $checklist_counts[$eidRow]['done']  = ($checklist_counts[$eidRow]['done']  ?? 0) + ($r['is_completed'] ? 1 : 0);
 }
 
-function time_ago(?string $dt): string {
-    if (!$dt) return '—';
-    $diff = time() - strtotime($dt);
-    if ($diff < 60)    return 'Just now';
-    if ($diff < 3600)  return floor($diff / 60) . 'm ago';
-    if ($diff < 86400) return floor($diff / 3600) . 'h ago';
-    return floor($diff / 86400) . 'd ago';
-}
-
-$status_labels = [
-    'not_started'    => 'Not Started',
-    'in_progress'    => 'In Progress',
-    'waiting_client' => 'Waiting Client',
-    'under_review'   => 'Under Review',
-];
-$status_badges = [
-    'not_started'    => 'badge-muted',
-    'in_progress'    => 'badge-primary',
-    'waiting_client' => 'badge-warning',
-    'under_review'   => 'badge-info',
-];
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -183,8 +132,12 @@ $status_badges = [
   color: #7d459a; letter-spacing: .04em;
 }
 .live-client { font-size: .72rem; color: rgba(240,240,240,.38); }
+.task-row-pri { width: 8px; height: 8px; border-radius: 50%; display:inline-block; }
+.pri-critical { background: #ef4444; }
+.pri-high     { background: #f97316; }
+.pri-medium   { background: #eab308; }
+.pri-low      { background: #6b7280; }
 
-/* ── Workload table extras ── */
 .emp-avatar-sm {
   width: 34px; height: 34px;
   border-radius: 9px;
@@ -192,25 +145,6 @@ $status_badges = [
   display: inline-flex; align-items: center; justify-content: center;
   font-weight: 700; font-size: .78rem; color: #c084fc;
   flex-shrink: 0;
-}
-.live-badge {
-  display: inline-flex; align-items: center; gap: .3rem;
-  font-size: .65rem; font-weight: 700; text-transform: uppercase;
-  letter-spacing: .05em; color: #4ade80;
-  background: rgba(74,222,128,.1);
-  border: 1px solid rgba(74,222,128,.25);
-  border-radius: 20px; padding: .15rem .55rem;
-}
-.bar-wrap {
-  width: 80px; height: 5px;
-  background: rgba(255,255,255,.07);
-  border-radius: 3px; overflow: hidden;
-  display: inline-block; vertical-align: middle;
-}
-.bar-fill {
-  height: 100%; border-radius: 3px;
-  background: linear-gradient(90deg, #7d459a, #c084fc);
-  transition: width .4s;
 }
 
 /* ── Section label ── */
@@ -220,14 +154,22 @@ $status_badges = [
   margin: 1.5rem 0 .75rem;
 }
 
-/* ── Task modal table ── */
-#task-modal .modal { max-width: 720px; }
-.task-row-pri { width: 8px; height: 8px; border-radius: 50%; display:inline-block; }
-.pri-critical { background: #ef4444; }
-.pri-high     { background: #f97316; }
-.pri-medium   { background: #eab308; }
-.pri-low      { background: #6b7280; }
-.overdue-text { color: #f87171; }
+/* ── Per-employee daily checklist cards ── */
+.checklist-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1rem;
+}
+.checklist-emp-card { padding: 1.1rem 1.25rem; }
+.checklist-emp-card .section-header { margin-bottom: .75rem; }
+.chk-item-row {
+  display: flex; align-items: center; gap: .55rem;
+  padding: .5rem 0;
+  border-bottom: 1px solid var(--clr-border);
+  font-size: .85rem;
+}
+.chk-item-row:last-child { border-bottom: none; }
+.chk-item-row .chk-title { flex: 1; }
 </style>
 </head>
 <body>
@@ -306,233 +248,57 @@ $status_badges = [
     </div>
     <?php endif; ?>
 
-    <!-- Employee Workload Table -->
-    <div class="section-label"><i class="fa fa-users" style="margin-right:.4rem"></i>Employee Workload</div>
-    <section class="section-card" style="padding:0">
-      <div class="table-responsive">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th style="padding-left:1.25rem">Employee</th>
-              <th>Daily Checklist</th>
-              <th>Open Tasks</th>
-              <th>In Progress</th>
-              <th>Hours (This Month)</th>
-              <th>Last Active</th>
-              <th>Status</th>
-              <th>Details</th>
-            </tr>
-          </thead>
-          <tbody>
-            <?php if (!$employees): ?>
-              <tr><td colspan="8" class="text-center text-muted" style="padding:2rem">No active employees.</td></tr>
-            <?php endif; ?>
-            <?php
-            $max_open = max(1, max(array_column($employees, 'open_tasks') ?: [1]));
-            foreach ($employees as $emp):
-                $is_live    = in_array($emp['id'], $live_emp_ids, true);
-                $emp_tasks  = $tasks_by_emp[$emp['id']] ?? [];
-                $emp_check  = $checklist_by_emp[$emp['id']] ?? [];
-                $chk_done   = $checklist_counts[$emp['id']]['done']  ?? 0;
-                $chk_total  = $checklist_counts[$emp['id']]['total'] ?? 0;
-                $chk_pct    = $chk_total ? round($chk_done / $chk_total * 100) : 0;
-                $open_pct   = min(100, round($emp['open_tasks'] / $max_open * 100));
-            ?>
-            <tr>
-              <td style="padding-left:1.25rem">
-                <div style="display:flex;align-items:center;gap:.65rem">
-                  <div class="emp-avatar-sm"><?= strtoupper(substr($emp['name'], 0, 1)) ?></div>
-                  <div>
-                    <div style="font-weight:600;color:#f0f0f0;font-size:.88rem"><?= h($emp['name']) ?></div>
-                    <div style="font-size:.72rem;color:rgba(240,240,240,.38)"><?= h($emp['position'] ?? $emp['role']) ?></div>
-                  </div>
-                </div>
-              </td>
-              <td>
-                <?php if ($chk_total): ?>
-                  <div style="display:flex;align-items:center;gap:.6rem">
-                    <strong style="color:<?= $chk_pct === 100 ? '#4ade80' : '#f0f0f0' ?>"><?= $chk_done ?>/<?= $chk_total ?></strong>
-                    <div class="bar-wrap">
-                      <div class="bar-fill" style="width:<?= $chk_pct ?>%<?= $chk_pct === 100 ? ';background:#4ade80' : '' ?>"></div>
-                    </div>
-                  </div>
-                <?php else: ?>
-                  <span style="color:rgba(240,240,240,.28)">No checklist</span>
-                <?php endif; ?>
-              </td>
-              <td>
-                <div style="display:flex;align-items:center;gap:.6rem">
-                  <strong style="color:<?= $emp['open_tasks'] > 5 ? '#f87171' : '#f0f0f0' ?>">
-                    <?= $emp['open_tasks'] ?>
-                  </strong>
-                  <div class="bar-wrap">
-                    <div class="bar-fill" style="width:<?= $open_pct ?>%"></div>
-                  </div>
-                </div>
-              </td>
-              <td>
-                <?php if ($emp['in_progress_tasks'] > 0): ?>
-                  <span style="color:#c084fc;font-weight:600"><?= $emp['in_progress_tasks'] ?></span>
-                <?php else: ?>
-                  <span style="color:rgba(240,240,240,.28)">0</span>
-                <?php endif; ?>
-              </td>
-              <td>
-                <?php if ($emp['hours_month'] > 0): ?>
-                  <span style="color:#f0f0f0;font-weight:500"><?= $emp['hours_month'] ?>h</span>
-                <?php else: ?>
-                  <span style="color:rgba(240,240,240,.28)">—</span>
-                <?php endif; ?>
-              </td>
-              <td style="color:rgba(240,240,240,.45);font-size:.82rem">
-                <?= $is_live ? '<span style="color:#4ade80;font-size:.78rem;font-weight:600">● Now</span>' : time_ago($emp['last_active']) ?>
-              </td>
-              <td>
-                <?php if ($is_live): ?>
-                  <span class="live-badge"><span class="live-dot"></span> Working</span>
-                <?php elseif ($emp['in_progress_tasks'] > 0): ?>
-                  <span class="badge badge-primary" style="font-size:.7rem">In Progress</span>
-                <?php elseif ($emp['open_tasks'] > 0): ?>
-                  <span class="badge badge-muted" style="font-size:.7rem">Tasks Pending</span>
-                <?php else: ?>
-                  <span style="color:rgba(240,240,240,.25);font-size:.78rem">No tasks</span>
-                <?php endif; ?>
-              </td>
-              <td>
-                <?php if ($emp_tasks || $emp_check): ?>
-                  <button class="btn btn-xs btn-outline"
-                          onclick='showTasks(<?= $emp['id'] ?>, <?= json_encode($emp['name'], JSON_HEX_APOS) ?>)'>
-                    <i class="fa fa-list"></i> <?= count($emp_tasks) ?> tasks · <?= $chk_done ?>/<?= $chk_total ?> checklist
-                  </button>
-                <?php else: ?>
-                  <span style="color:rgba(240,240,240,.2);font-size:.8rem">—</span>
-                <?php endif; ?>
-              </td>
-            </tr>
-            <?php endforeach; ?>
-          </tbody>
-        </table>
+    <!-- Per-Employee Daily Checklist -->
+    <div class="section-label"><i class="fa fa-list-check" style="margin-right:.4rem"></i>Daily Checklist — <?= date('d M Y', strtotime($today)) ?></div>
+    <div class="checklist-cards-grid">
+      <?php foreach ($employees as $emp):
+          $emp_check = $checklist_by_emp[$emp['id']] ?? [];
+          $chk_done  = $checklist_counts[$emp['id']]['done']  ?? 0;
+          $chk_total = $checklist_counts[$emp['id']]['total'] ?? 0;
+          $chk_pct   = $chk_total ? round($chk_done / $chk_total * 100) : 0;
+      ?>
+      <div class="section-card checklist-emp-card">
+        <div class="section-header">
+          <div style="display:flex;align-items:center;gap:.65rem">
+            <div class="emp-avatar-sm"><?= strtoupper(substr($emp['name'], 0, 1)) ?></div>
+            <div>
+              <h2 style="font-size:.92rem;margin:0"><?= h($emp['name']) ?></h2>
+              <div style="font-size:.72rem;color:rgba(240,240,240,.4)"><?= h($emp['position'] ?? $emp['role']) ?></div>
+            </div>
+          </div>
+          <span class="badge <?= !$chk_total ? 'badge-secondary' : ($chk_pct === 100 ? 'badge-success' : 'badge-info') ?>"><?= $chk_done ?>/<?= $chk_total ?></span>
+        </div>
+        <?php if ($chk_total): ?>
+        <div class="progress-bar-wrap" style="margin-bottom:.85rem">
+          <div class="progress-bar <?= $chk_pct === 100 ? 'bar-green' : '' ?>" style="width:<?= $chk_pct ?>%"></div>
+        </div>
+        <?php endif; ?>
+        <div>
+          <?php if (!$emp_check): ?>
+            <p class="empty-state" style="padding:.5rem 0">No checklist assigned today.</p>
+          <?php else: foreach ($emp_check as $it): ?>
+            <div class="chk-item-row">
+              <?php if ($it['is_completed']): ?>
+                <i class="fa fa-circle-check" style="color:#4ade80"></i>
+              <?php else: ?>
+                <i class="fa fa-clock" style="color:#eab308"></i>
+              <?php endif; ?>
+              <span class="chk-title" style="<?= $it['is_completed'] ? 'text-decoration:line-through;color:var(--clr-muted)' : '' ?>"><?= h($it['title']) ?></span>
+              <span class="badge <?= $it['is_completed'] ? 'badge-success' : 'badge-warning' ?>" style="font-size:.65rem"><?= $it['is_completed'] ? 'Completed' : 'Pending' ?></span>
+            </div>
+          <?php endforeach; endif; ?>
+        </div>
       </div>
-    </section>
+      <?php endforeach; ?>
+      <?php if (!$employees): ?>
+        <p class="empty-state">No active employees.</p>
+      <?php endif; ?>
+    </div>
 
   </main>
 </div>
 
-<!-- Task list modal -->
-<div id="task-modal" class="modal-overlay" style="display:none">
-  <div class="modal" style="max-width:700px">
-    <div class="modal-header">
-      <h3><i class="fa fa-clipboard-list"></i> <span id="task-modal-name"></span>'s Work Today</h3>
-      <button onclick="closeModal('task-modal')" class="modal-close">&times;</button>
-    </div>
-
-    <div class="section-label" style="margin-top:0"><i class="fa fa-list-check" style="margin-right:.4rem"></i>Daily Checklist</div>
-    <div style="overflow-x:auto;margin-bottom:1.25rem">
-      <table class="data-table" id="checklist-modal-table">
-        <thead>
-          <tr>
-            <th>Task</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody id="checklist-modal-body"></tbody>
-      </table>
-    </div>
-
-    <div class="section-label"><i class="fa fa-diagram-project" style="margin-right:.4rem"></i>Project Tasks</div>
-    <div style="overflow-x:auto">
-      <table class="data-table" id="task-modal-table">
-        <thead>
-          <tr>
-            <th>Task</th>
-            <th>Priority</th>
-            <th>Status</th>
-            <th>Due Date</th>
-            <th>Client</th>
-          </tr>
-        </thead>
-        <tbody id="task-modal-body"></tbody>
-      </table>
-    </div>
-  </div>
-</div>
-
-<!-- Embed task data for JS -->
 <script>
-var TASKS_BY_EMP     = <?= json_encode($tasks_by_emp, JSON_HEX_TAG) ?>;
-var CHECKLIST_BY_EMP = <?= json_encode($checklist_by_emp, JSON_HEX_TAG) ?>;
-var TODAY = '<?= $today ?>';
-
-var STATUS_LABELS = {
-  not_started:    'Not Started',
-  in_progress:    'In Progress',
-  waiting_client: 'Waiting Client',
-  under_review:   'Under Review'
-};
-var STATUS_CLASSES = {
-  not_started:    'badge-muted',
-  in_progress:    'badge-primary',
-  waiting_client: 'badge-warning',
-  under_review:   'badge-info'
-};
-var PRI_COLORS = { critical:'#ef4444', high:'#f97316', medium:'#eab308', low:'#6b7280' };
-
-function showTasks(empId, empName) {
-  var tasks     = TASKS_BY_EMP[empId] || [];
-  var checklist = CHECKLIST_BY_EMP[empId] || [];
-  document.getElementById('task-modal-name').textContent = empName;
-
-  var ctbody = document.getElementById('checklist-modal-body');
-  ctbody.innerHTML = '';
-  if (!checklist.length) {
-    ctbody.innerHTML = '<tr><td colspan="2" style="text-align:center;padding:1.5rem;color:rgba(240,240,240,.3)">No checklist for today.</td></tr>';
-  } else {
-    checklist.forEach(function(c) {
-      var row = '<tr>'
-        + '<td style="' + (c.is_completed ? 'color:rgba(240,240,240,.45);text-decoration:line-through' : '') + '">' + escHtml(c.title) + '</td>'
-        + '<td>' + (c.is_completed
-            ? '<span class="badge badge-success" style="font-size:.7rem"><i class="fa fa-check"></i> Done</span>'
-            : '<span class="badge badge-muted" style="font-size:.7rem"><i class="fa fa-circle"></i> Pending</span>')
-        + '</td></tr>';
-      ctbody.insertAdjacentHTML('beforeend', row);
-    });
-  }
-
-  var tbody = document.getElementById('task-modal-body');
-  tbody.innerHTML = '';
-
-  if (!tasks.length) {
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:1.5rem;color:rgba(240,240,240,.3)">No open tasks.</td></tr>';
-  } else {
-    tasks.forEach(function(t) {
-      var due      = t.due_date || '';
-      var overdue  = due && due < TODAY;
-      var dueLabel = due ? new Date(due + 'T00:00:00').toLocaleDateString('en-GB', {day:'2-digit',month:'short',year:'numeric'}) : '—';
-      var priColor = PRI_COLORS[t.priority] || '#6b7280';
-      var statusLabel = STATUS_LABELS[t.status] || t.status;
-      var statusClass = STATUS_CLASSES[t.status] || 'badge-muted';
-
-      var row = '<tr>'
-        + '<td><a href="/todo/task_detail.php?id=' + t.id + '" style="color:#f0f0f0;text-decoration:none;font-weight:500">'
-        +   '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + priColor + ';margin-right:.5rem;vertical-align:middle"></span>'
-        +   escHtml(t.title)
-        + '</a></td>'
-        + '<td><span style="text-transform:capitalize;color:rgba(240,240,240,.6);font-size:.82rem">' + escHtml(t.priority) + '</span></td>'
-        + '<td><span class="badge ' + statusClass + '" style="font-size:.7rem">' + statusLabel + '</span></td>'
-        + '<td class="' + (overdue ? 'overdue-text' : '') + '" style="font-size:.82rem">' + dueLabel + (overdue ? ' ⚠' : '') + '</td>'
-        + '<td style="font-size:.82rem;color:rgba(240,240,240,.45)">' + (t.client_name ? escHtml(t.client_name) : '—') + '</td>'
-        + '</tr>';
-      tbody.insertAdjacentHTML('beforeend', row);
-    });
-  }
-
-  openModal('task-modal');
-}
-
-function escHtml(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
 // ── Live timer tick ─────────────────────────────────────────
 var serverNow = <?= $now_ts ?>;
 var clientNow = Math.floor(Date.now() / 1000);
