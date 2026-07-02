@@ -41,14 +41,14 @@ $emp_role = $_SESSION['role']     ?? 'employee';
   <!-- Management -->
   <div class="sidebar-section">Management</div>
   <a href="/admin/dashboard.php"  class="sidebar-link <?= is_active('/admin/dashboard') ?>"><i class="fa fa-chart-bar"></i> Team Overview</a>
-  <a href="/admin/employees.php"  class="sidebar-link <?= is_active('/admin/employees') ?>"><i class="fa fa-users"></i> Employees</a>
-  <a href="/admin/clients.php"    class="sidebar-link <?= is_active('/admin/clients') ?>"><i class="fa fa-building"></i> Clients</a>
-  <a href="/admin/attendance.php" class="sidebar-link <?= is_active('/admin/attendance') ?>"><i class="fa fa-user-clock"></i> Attendance</a>
   <a href="/admin/checklist.php"  class="sidebar-link <?= is_active('/admin/checklist') ?>"><i class="fa fa-list-check"></i> Checklist Setup</a>
   <a href="/admin/projects.php"   class="sidebar-link <?= is_active('/admin/projects') ?>"><i class="fa fa-project-diagram"></i> Manage Projects</a>
+  <a href="/admin/attendance.php" class="sidebar-link <?= is_active('/admin/attendance') ?>"><i class="fa fa-user-clock"></i> Attendance</a>
   <a href="/leave/admin.php"      class="sidebar-link <?= is_active('/leave/admin') ?>"><i class="fa fa-user-shield"></i> Leave Approvals</a>
   <a href="/leave/holidays.php"   class="sidebar-link <?= is_active('/leave/holidays') ?>"><i class="fa fa-calendar-plus"></i> Holidays</a>
   <a href="/admin/reports.php"    class="sidebar-link <?= is_active('/admin/reports') ?>"><i class="fa fa-chart-bar"></i> Reports</a>
+  <a href="/admin/employees.php"  class="sidebar-link <?= is_active('/admin/employees') ?>"><i class="fa fa-users"></i> Employees</a>
+  <a href="/admin/clients.php"    class="sidebar-link <?= is_active('/admin/clients') ?>"><i class="fa fa-building"></i> Clients</a>
   <?php endif; ?>
   <?php if ($_SESSION['role'] === 'admin'): ?>
   <a href="/admin/settings.php"   class="sidebar-link <?= is_active('/admin/settings') ?>"><i class="fa fa-cog"></i> Settings</a>
