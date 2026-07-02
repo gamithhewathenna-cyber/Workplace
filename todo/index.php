@@ -64,6 +64,8 @@ $notifications = $notifs->fetchAll();
 $is_mgr = is_manager();
 $team_checklist_by_emp = [];
 $team_checklist_counts = [];
+$team_task_by_emp      = [];
+$team_task_counts      = [];
 $team_employees        = [];
 if ($is_mgr) {
     $team_employees = db()->query("
@@ -86,6 +88,21 @@ if ($is_mgr) {
         $team_checklist_by_emp[$rEid][] = ['title' => $r['title'], 'is_completed' => (bool)$r['is_completed']];
         $team_checklist_counts[$rEid]['total'] = ($team_checklist_counts[$rEid]['total'] ?? 0) + 1;
         $team_checklist_counts[$rEid]['done']  = ($team_checklist_counts[$rEid]['done']  ?? 0) + ($r['is_completed'] ? 1 : 0);
+    }
+
+    $team_task_rows = db()->query("
+        SELECT t.id, t.title, t.status, t.priority, t.due_date, t.assigned_to,
+               c.name AS client_name
+        FROM tasks t
+        LEFT JOIN clients c ON c.id = t.client_id
+        WHERE t.status != 'cancelled'
+        ORDER BY FIELD(t.priority,'critical','high','medium','low'), t.due_date ASC
+    ")->fetchAll();
+    foreach ($team_task_rows as $t) {
+        $rEid = (int)$t['assigned_to'];
+        $team_task_by_emp[$rEid][] = $t;
+        $team_task_counts[$rEid]['total'] = ($team_task_counts[$rEid]['total'] ?? 0) + 1;
+        $team_task_counts[$rEid]['done']  = ($team_task_counts[$rEid]['done']  ?? 0) + ($t['status'] === 'completed' ? 1 : 0);
     }
 }
 
@@ -349,6 +366,56 @@ $error   = get_flash('error');
               <?php endif; ?>
               <span class="chk-title" style="<?= $it['is_completed'] ? 'text-decoration:line-through;color:var(--clr-muted)' : '' ?>"><?= h($it['title']) ?></span>
               <span class="badge <?= $it['is_completed'] ? 'badge-success' : 'badge-warning' ?>" style="font-size:.65rem"><?= $it['is_completed'] ? 'Completed' : 'Pending' ?></span>
+            </div>
+          <?php endforeach; endif; ?>
+        </div>
+      </div>
+      <?php endforeach; ?>
+      <?php if (!$team_employees): ?>
+        <p class="empty-state">No active employees.</p>
+      <?php endif; ?>
+    </div>
+
+    <!-- Team's Assigned Tasks -->
+    <div class="section-label"><i class="fa fa-clipboard-list" style="margin-right:.4rem"></i>Team's Assigned Tasks</div>
+    <div class="checklist-cards-grid">
+      <?php
+      $task_badge_map = [
+          'not_started'    => 'badge-secondary',
+          'in_progress'    => 'badge-info',
+          'waiting_client' => 'badge-warning',
+          'under_review'   => 'badge-warning',
+          'completed'      => 'badge-success',
+      ];
+      foreach ($team_employees as $te):
+          $te_tasks = $team_task_by_emp[$te['id']] ?? [];
+          $te_tdone  = $team_task_counts[$te['id']]['done']  ?? 0;
+          $te_ttotal = $team_task_counts[$te['id']]['total'] ?? 0;
+          $te_tpct   = $te_ttotal ? round($te_tdone / $te_ttotal * 100) : 0;
+      ?>
+      <div class="section-card checklist-emp-card">
+        <div class="section-header">
+          <div style="display:flex;align-items:center;gap:.65rem">
+            <div class="emp-avatar-sm"><?= strtoupper(substr($te['name'], 0, 1)) ?></div>
+            <div>
+              <h2 style="font-size:.92rem;margin:0"><?= h($te['name']) ?></h2>
+              <div style="font-size:.72rem;color:var(--clr-muted)"><?= h($te['position'] ?? $te['role']) ?></div>
+            </div>
+          </div>
+          <span class="badge <?= !$te_ttotal ? 'badge-secondary' : ($te_tpct === 100 ? 'badge-success' : 'badge-info') ?>"><?= $te_tdone ?>/<?= $te_ttotal ?></span>
+        </div>
+        <?php if ($te_ttotal): ?>
+        <div class="progress-bar-wrap" style="margin-bottom:.85rem">
+          <div class="progress-bar <?= $te_tpct === 100 ? 'bar-green' : '' ?>" style="width:<?= $te_tpct ?>%"></div>
+        </div>
+        <?php endif; ?>
+        <div>
+          <?php if (!$te_tasks): ?>
+            <p class="empty-state" style="padding:.5rem 0">No tasks assigned.</p>
+          <?php else: foreach ($te_tasks as $t): ?>
+            <div class="chk-item-row">
+              <span class="chk-title" style="<?= $t['status'] === 'completed' ? 'text-decoration:line-through;color:var(--clr-muted)' : '' ?>"><?= h($t['title']) ?></span>
+              <span class="badge <?= $task_badge_map[$t['status']] ?? 'badge-secondary' ?>" style="font-size:.65rem"><?= ucwords(str_replace('_',' ',$t['status'])) ?></span>
             </div>
           <?php endforeach; endif; ?>
         </div>
