@@ -8,6 +8,7 @@ require_login();
 
 $eid       = current_employee_id();
 $is_mgr    = is_manager();
+$isAdmin   = ($_SESSION['role'] ?? '') === 'admin';
 $today     = date('Y-m-d');
 
 // ── Handle POST ────────────────────────────────────────────
@@ -100,6 +101,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             db()->prepare("UPDATE tasks SET status=? WHERE id=? AND (assigned_to=? OR ? = 1)")
                ->execute([$status, $tid, $eid, (int)$is_mgr]);
             flash('success', 'Task status updated.');
+        }
+        redirect('tasks.php');
+    }
+
+    if ($action === 'delete_task' && $isAdmin) {
+        $tid = (int)$_POST['task_id'];
+        if ($tid) {
+            db()->prepare("DELETE FROM tasks WHERE id=?")->execute([$tid]);
+            flash('success', 'Task deleted.');
         }
         redirect('tasks.php');
     }
@@ -228,6 +238,13 @@ $error   = get_flash('error');
               <td>
                 <a href="task_detail.php?id=<?= $t['id'] ?>" class="btn btn-xs"><i class="fa fa-eye"></i></a>
                 <a href="time_track.php?task=<?= $t['id'] ?>" class="btn btn-xs btn-outline" title="Track Time"><i class="fa fa-stopwatch"></i></a>
+                <?php if ($isAdmin): ?>
+                <form method="post" style="display:inline">
+                  <input type="hidden" name="action" value="delete_task">
+                  <input type="hidden" name="task_id" value="<?= $t['id'] ?>">
+                  <button class="btn btn-xs btn-danger" title="Delete Task" data-confirm="Delete task '<?= h($t['title']) ?>'? This cannot be undone."><i class="fa fa-trash"></i></button>
+                </form>
+                <?php endif; ?>
               </td>
             </tr>
             <?php endforeach; ?>

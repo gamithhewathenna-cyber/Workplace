@@ -6,9 +6,10 @@
 require_once __DIR__ . '/../includes/config.php';
 require_login();
 
-$eid    = current_employee_id();
-$is_mgr = is_manager();
-$tid    = (int)($_GET['id'] ?? 0);
+$eid     = current_employee_id();
+$is_mgr  = is_manager();
+$isAdmin = ($_SESSION['role'] ?? '') === 'admin';
+$tid     = (int)($_GET['id'] ?? 0);
 
 if (!$tid) { redirect('/todo/tasks.php'); }
 
@@ -45,6 +46,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         db()->prepare("UPDATE tasks SET notes=? WHERE id=?")->execute([$notes, $tid]);
         flash('success', 'Notes updated.');
         redirect("task_detail.php?id=$tid");
+    }
+    if ($_POST['action'] === 'delete_task' && $isAdmin) {
+        db()->prepare("DELETE FROM tasks WHERE id=?")->execute([$tid]);
+        flash('success', 'Task deleted.');
+        redirect('tasks.php');
     }
 }
 
@@ -103,6 +109,12 @@ $error   = get_flash('error');
       </div>
       <div class="header-actions">
         <a href="time_track.php?task=<?= $tid ?>" class="btn btn-outline"><i class="fa fa-stopwatch"></i> Track Time</a>
+        <?php if ($isAdmin): ?>
+        <form method="post" style="display:inline">
+          <input type="hidden" name="action" value="delete_task">
+          <button class="btn btn-danger" data-confirm="Delete task '<?= h($task['title']) ?>'? This cannot be undone."><i class="fa fa-trash"></i> Delete Task</button>
+        </form>
+        <?php endif; ?>
       </div>
     </div>
 
