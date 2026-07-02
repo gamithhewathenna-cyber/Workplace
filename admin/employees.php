@@ -48,7 +48,24 @@ if ($action === 'add') {
                  VALUES (?,?,?,?,?,?,?,?,'active')"
             )->execute([$name, $email, $hash, $pos, $phone, $dept, $jdate ?: null, $role]);
             $new_emp_pw = $pw;
+
+            $login_url = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http')
+                       . '://' . $_SERVER['HTTP_HOST'] . '/login.php';
+            $body = '<p>Hi <strong>' . htmlspecialchars($name, ENT_QUOTES, 'UTF-8') . '</strong>,</p>'
+                  . '<p>An account has been created for you on the Employee Portal. Use the details below to log in and activate your account.</p>'
+                  . '<p style="margin:1rem 0">Login email: <strong>' . htmlspecialchars($email, ENT_QUOTES, 'UTF-8') . '</strong></p>'
+                  . '<p style="margin:0 0 .5rem">Temporary password:</p>'
+                  . '<p style="font-size:1.4rem;font-weight:700;letter-spacing:.15em;color:#c084fc;background:#0d0d0d;padding:.75rem 1.25rem;border-radius:8px;display:inline-block">' . htmlspecialchars($pw, ENT_QUOTES, 'UTF-8') . '</p>'
+                  . '<p style="margin-top:1rem;color:#888;font-size:.85rem">Please log in and change your password immediately from your profile settings.</p>';
+            $mailSent = send_mail($email, $name, 'Your Employee Portal Account',
+                mail_template('Welcome to the Team', $body, 'Log In Now', $login_url));
+
             $success = "Employee <strong>" . htmlspecialchars($name, ENT_QUOTES, 'UTF-8') . "</strong> added.";
+            if ($mailSent) {
+                $success .= ' A welcome email with login details was sent to their address.';
+            } else {
+                $success .= ' <span style="color:var(--clr-warning)">Could not send the welcome email (' . htmlspecialchars(get_mail_error() ?: 'SMTP not configured', ENT_QUOTES, 'UTF-8') . ') — share the password below manually.</span>';
+            }
         }
     }
 }
