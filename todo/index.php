@@ -279,36 +279,35 @@ $error   = get_flash('error');
         <h2><i class="fa fa-clipboard-list"></i> Assigned Tasks</h2>
         <a href="tasks.php" class="btn btn-sm">View All</a>
       </div>
-      <div class="table-responsive">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Task</th><th>Client</th><th>Priority</th><th>Due Date</th><th>Status</th><th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <?php foreach ($openTasks as $t): ?>
-            <tr class="<?= $t['due_date'] && $t['due_date'] < $today ? 'overdue-row' : '' ?>">
-              <td><?= h($t['title']) ?></td>
-              <td><?= h($t['client_name'] ?? '—') ?></td>
-              <td><span class="badge priority-<?= $t['priority'] ?>"><?= ucfirst($t['priority']) ?></span></td>
-              <td><?= $t['due_date'] ? date('d M Y', strtotime($t['due_date'])) : '—' ?></td>
-              <td>
-                <span class="badge status-<?= str_replace('_','-',$t['status']) ?>">
-                  <?= ucwords(str_replace('_',' ',$t['status'])) ?>
-                </span>
-              </td>
-              <td>
-                <a href="task_detail.php?id=<?= $t['id'] ?>" class="btn btn-xs"><i class="fa fa-eye"></i></a>
-                <a href="time_track.php?task=<?= $t['id'] ?>" class="btn btn-xs btn-outline"><i class="fa fa-stopwatch"></i></a>
-              </td>
-            </tr>
-            <?php endforeach; ?>
-            <?php if (!$openTasks): ?>
-              <tr><td colspan="6" class="text-center text-muted">No open tasks 🎉</td></tr>
-            <?php endif; ?>
-          </tbody>
-        </table>
+      <div class="task-cards-grid">
+        <?php foreach ($openTasks as $t): ?>
+        <div class="task-card <?= $t['due_date'] && $t['due_date'] < $today ? 'overdue' : '' ?>">
+          <div class="task-card-title"><?= h($t['title']) ?></div>
+          <div class="task-card-meta">
+            <span><?= h($t['client_name'] ?? 'No Client') ?></span>
+            <span class="badge priority-<?= $t['priority'] ?>"><?= ucfirst($t['priority']) ?></span>
+          </div>
+          <div class="task-card-meta">
+            <span class="badge status-<?= str_replace('_','-',$t['status']) ?>">
+              <?= ucwords(str_replace('_',' ',$t['status'])) ?>
+            </span>
+            <span class="<?= $t['due_date'] && $t['due_date'] < $today ? 'text-danger' : '' ?>">
+              <?php if ($t['due_date']): ?>
+                <i class="fa fa-calendar-alt"></i> <?= date('d M Y', strtotime($t['due_date'])) ?>
+              <?php else: ?>
+                —
+              <?php endif; ?>
+            </span>
+          </div>
+          <div class="task-card-footer">
+            <a href="task_detail.php?id=<?= $t['id'] ?>" class="btn btn-xs"><i class="fa fa-eye"></i> View</a>
+            <a href="time_track.php?task=<?= $t['id'] ?>" class="btn btn-xs btn-outline"><i class="fa fa-stopwatch"></i> Track</a>
+          </div>
+        </div>
+        <?php endforeach; ?>
+        <?php if (!$openTasks): ?>
+          <p class="empty-state">No open tasks 🎉</p>
+        <?php endif; ?>
       </div>
     </section>
 

@@ -407,6 +407,24 @@ body { font-family: var(--font); background: var(--clr-bg); color: var(--clr-tex
 .proj-meta { display: flex; justify-content: space-between; margin-bottom: .5rem; font-size: .78rem; color: var(--clr-muted); }
 .proj-footer { display: flex; justify-content: space-between; font-size: .74rem; color: var(--clr-muted); margin-top: .25rem; }
 
+/* ── Task Cards ──────────────────────────────────────────── */
+.task-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: .75rem;
+}
+.task-card {
+  border: 1px solid var(--clr-border);
+  border-radius: var(--radius-sm);
+  padding: .875rem 1rem;
+  transition: var(--transition);
+}
+.task-card:hover { border-color: var(--clr-primary); box-shadow: var(--shadow-lg); }
+.task-card.overdue { border-left: 3px solid var(--clr-danger); }
+.task-card-title { font-weight: 600; font-size: .88rem; margin-bottom: .5rem; }
+.task-card-meta { display: flex; align-items: center; justify-content: space-between; font-size: .78rem; color: var(--clr-muted); margin-bottom: .5rem; }
+.task-card-footer { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-top: .5rem; }
+
 /* ── Progress Bar ────────────────────────────────────────── */
 .progress-bar-wrap { height: 6px; background: var(--clr-border); border-radius: 3px; overflow: hidden; margin: .4rem 0; }
 .progress-bar { height: 100%; background: var(--clr-primary); border-radius: 3px; transition: width .4s ease; }
