@@ -16,9 +16,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
     if ($action === 'create_task' && $is_mgr) {
+        $client_id = $_POST['client_id'] ?: null;
+        $new_client_name = trim($_POST['new_client_name'] ?? '');
+        if ($new_client_name) {
+            $cc = db()->prepare("SELECT id FROM clients WHERE LOWER(name)=LOWER(?) LIMIT 1");
+            $cc->execute([$new_client_name]);
+            $client_id = $cc->fetchColumn();
+            if (!$client_id) {
+                db()->prepare("INSERT INTO clients (name, is_active) VALUES (?, 1)")->execute([$new_client_name]);
+                $client_id = db()->lastInsertId();
+            }
+        }
+
         $fields = [
             'title'          => trim($_POST['title'] ?? ''),
-            'client_id'      => $_POST['client_id'] ?: null,
+            'client_id'      => $client_id,
             'project_id'     => $_POST['project_id'] ?: null,
             'description'    => trim($_POST['description'] ?? ''),
             'priority'       => $_POST['priority'] ?? 'medium',
@@ -292,12 +304,15 @@ $error   = get_flash('error');
         </div>
         <div class="form-group">
           <label>Client</label>
-          <select name="client_id" class="input">
+          <select name="client_id" class="input" onchange="document.getElementById('new-client-name').value=''">
             <option value="">Select Client</option>
             <?php foreach ($clients as $c): ?>
               <option value="<?= $c['id'] ?>"><?= h($c['name']) ?></option>
             <?php endforeach; ?>
           </select>
+          <input type="text" name="new_client_name" id="new-client-name" class="input" style="margin-top:.4rem"
+                 placeholder="Not in the list? Type a new client name…"
+                 oninput="if(this.value) this.form.client_id.value=''">
         </div>
         <div class="form-group">
           <label>Project</label>
