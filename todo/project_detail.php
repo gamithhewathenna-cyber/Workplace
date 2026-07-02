@@ -23,17 +23,22 @@ if ($is_mgr) {
 $project = $st->fetch();
 if (!$project) { redirect('/todo/projects.php'); }
 
-// Handle POST: update progress (managers only)
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $is_mgr) {
+// Handle POST: update progress. Any team member can update the completion
+// percentage; only managers can also change the project status (the query
+// above already guarantees a non-manager reaching this point is on the team).
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     if ($action === 'update') {
         $pct    = max(0, min(100, (int)$_POST['completion_percent']));
-        $status = $_POST['status'] ?? $project['status'];
-        $valid  = ['active','on_hold','completed','cancelled'];
-        if (!in_array($status, $valid, true)) $status = $project['status'];
+        $status = $project['status'];
+        if ($is_mgr) {
+            $status = $_POST['status'] ?? $project['status'];
+            $valid  = ['active','on_hold','completed','cancelled'];
+            if (!in_array($status, $valid, true)) $status = $project['status'];
+        }
         db()->prepare("UPDATE projects SET completion_percent=?, status=? WHERE id=?")
            ->execute([$pct, $status, $pid]);
-        flash('success', 'Project updated.');
+        flash('success', 'Project progress updated.');
         redirect("project_detail.php?id=$pid");
     }
 }
@@ -89,9 +94,7 @@ $error   = get_flash('error');
           <span class="badge priority-<?= $project['priority'] ?>"><?= ucfirst($project['priority']) ?></span>
         </h1>
       </div>
-      <?php if ($is_mgr): ?>
-      <button class="btn btn-primary" onclick="openModal('update-project-modal')"><i class="fa fa-edit"></i> Update</button>
-      <?php endif; ?>
+      <button class="btn btn-primary" onclick="openModal('update-project-modal')"><i class="fa fa-edit"></i> Update Progress</button>
     </div>
 
     <?php if ($success): ?><div class="alert alert-success"><?= h($success) ?></div><?php endif; ?>
@@ -211,15 +214,15 @@ $error   = get_flash('error');
   </main>
 </div>
 
-<?php if ($is_mgr): ?>
 <div id="update-project-modal" class="modal-overlay" style="display:none">
   <div class="modal modal-sm">
     <div class="modal-header">
-      <h3><i class="fa fa-edit"></i> Update Project</h3>
+      <h3><i class="fa fa-edit"></i> Update Progress</h3>
       <button onclick="closeModal('update-project-modal')" class="modal-close">&times;</button>
     </div>
     <form method="post" class="modal-form">
       <input type="hidden" name="action" value="update">
+      <?php if ($is_mgr): ?>
       <div class="form-group" style="margin-bottom:.875rem">
         <label>Status</label>
         <select name="status" class="input">
@@ -228,6 +231,7 @@ $error   = get_flash('error');
           <?php endforeach; ?>
         </select>
       </div>
+      <?php endif; ?>
       <div class="form-group" style="margin-bottom:1rem">
         <label>Completion % (<?= $project['completion_percent'] ?>%)</label>
         <input type="range" name="completion_percent" min="0" max="100" value="<?= $project['completion_percent'] ?>" class="input" oninput="document.getElementById('pct-val').textContent=this.value+'%'">
@@ -240,7 +244,6 @@ $error   = get_flash('error');
     </form>
   </div>
 </div>
-<?php endif; ?>
 
 <script src="/assets/js/portal.js"></script>
 </body>
