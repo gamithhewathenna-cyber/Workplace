@@ -63,8 +63,27 @@ foreach ($all_open as $t) {
     $tasks_by_emp[(int)$t['assigned_to']][] = $t;
 }
 
-$today    = date('Y-m-d');
-$now_ts   = time();
+$today  = date('Y-m-d');
+$now_ts = time();
+
+// ── Today's daily checklist grouped by employee ─────────────
+$checklist_rows = db()->prepare("
+    SELECT dc.employee_id, ct.title, dc.is_completed
+    FROM daily_checklist dc
+    JOIN checklist_templates ct ON ct.id = dc.template_id
+    WHERE dc.check_date = ?
+    ORDER BY ct.sort_order
+");
+$checklist_rows->execute([$today]);
+
+$checklist_by_emp = [];
+$checklist_counts = [];
+foreach ($checklist_rows->fetchAll() as $r) {
+    $eidRow = (int)$r['employee_id'];
+    $checklist_by_emp[$eidRow][] = ['title' => $r['title'], 'is_completed' => (bool)$r['is_completed']];
+    $checklist_counts[$eidRow]['total'] = ($checklist_counts[$eidRow]['total'] ?? 0) + 1;
+    $checklist_counts[$eidRow]['done']  = ($checklist_counts[$eidRow]['done']  ?? 0) + ($r['is_completed'] ? 1 : 0);
+}
 
 function time_ago(?string $dt): string {
     if (!$dt) return '—';
@@ -295,23 +314,28 @@ $status_badges = [
           <thead>
             <tr>
               <th style="padding-left:1.25rem">Employee</th>
+              <th>Daily Checklist</th>
               <th>Open Tasks</th>
               <th>In Progress</th>
               <th>Hours (This Month)</th>
               <th>Last Active</th>
               <th>Status</th>
-              <th>Tasks</th>
+              <th>Details</th>
             </tr>
           </thead>
           <tbody>
             <?php if (!$employees): ?>
-              <tr><td colspan="7" class="text-center text-muted" style="padding:2rem">No active employees.</td></tr>
+              <tr><td colspan="8" class="text-center text-muted" style="padding:2rem">No active employees.</td></tr>
             <?php endif; ?>
             <?php
             $max_open = max(1, max(array_column($employees, 'open_tasks') ?: [1]));
             foreach ($employees as $emp):
                 $is_live    = in_array($emp['id'], $live_emp_ids, true);
                 $emp_tasks  = $tasks_by_emp[$emp['id']] ?? [];
+                $emp_check  = $checklist_by_emp[$emp['id']] ?? [];
+                $chk_done   = $checklist_counts[$emp['id']]['done']  ?? 0;
+                $chk_total  = $checklist_counts[$emp['id']]['total'] ?? 0;
+                $chk_pct    = $chk_total ? round($chk_done / $chk_total * 100) : 0;
                 $open_pct   = min(100, round($emp['open_tasks'] / $max_open * 100));
             ?>
             <tr>
@@ -323,6 +347,18 @@ $status_badges = [
                     <div style="font-size:.72rem;color:rgba(240,240,240,.38)"><?= h($emp['position'] ?? $emp['role']) ?></div>
                   </div>
                 </div>
+              </td>
+              <td>
+                <?php if ($chk_total): ?>
+                  <div style="display:flex;align-items:center;gap:.6rem">
+                    <strong style="color:<?= $chk_pct === 100 ? '#4ade80' : '#f0f0f0' ?>"><?= $chk_done ?>/<?= $chk_total ?></strong>
+                    <div class="bar-wrap">
+                      <div class="bar-fill" style="width:<?= $chk_pct ?>%<?= $chk_pct === 100 ? ';background:#4ade80' : '' ?>"></div>
+                    </div>
+                  </div>
+                <?php else: ?>
+                  <span style="color:rgba(240,240,240,.28)">No checklist</span>
+                <?php endif; ?>
               </td>
               <td>
                 <div style="display:flex;align-items:center;gap:.6rem">
@@ -363,10 +399,10 @@ $status_badges = [
                 <?php endif; ?>
               </td>
               <td>
-                <?php if ($emp_tasks): ?>
+                <?php if ($emp_tasks || $emp_check): ?>
                   <button class="btn btn-xs btn-outline"
                           onclick='showTasks(<?= $emp['id'] ?>, <?= json_encode($emp['name'], JSON_HEX_APOS) ?>)'>
-                    <i class="fa fa-list"></i> <?= count($emp_tasks) ?>
+                    <i class="fa fa-list"></i> <?= count($emp_tasks) ?> tasks · <?= $chk_done ?>/<?= $chk_total ?> checklist
                   </button>
                 <?php else: ?>
                   <span style="color:rgba(240,240,240,.2);font-size:.8rem">—</span>
@@ -386,9 +422,24 @@ $status_badges = [
 <div id="task-modal" class="modal-overlay" style="display:none">
   <div class="modal" style="max-width:700px">
     <div class="modal-header">
-      <h3><i class="fa fa-clipboard-list"></i> <span id="task-modal-name"></span>'s Tasks</h3>
+      <h3><i class="fa fa-clipboard-list"></i> <span id="task-modal-name"></span>'s Work Today</h3>
       <button onclick="closeModal('task-modal')" class="modal-close">&times;</button>
     </div>
+
+    <div class="section-label" style="margin-top:0"><i class="fa fa-list-check" style="margin-right:.4rem"></i>Daily Checklist</div>
+    <div style="overflow-x:auto;margin-bottom:1.25rem">
+      <table class="data-table" id="checklist-modal-table">
+        <thead>
+          <tr>
+            <th>Task</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="checklist-modal-body"></tbody>
+      </table>
+    </div>
+
+    <div class="section-label"><i class="fa fa-diagram-project" style="margin-right:.4rem"></i>Project Tasks</div>
     <div style="overflow-x:auto">
       <table class="data-table" id="task-modal-table">
         <thead>
@@ -408,7 +459,8 @@ $status_badges = [
 
 <!-- Embed task data for JS -->
 <script>
-var TASKS_BY_EMP = <?= json_encode($tasks_by_emp, JSON_HEX_TAG) ?>;
+var TASKS_BY_EMP     = <?= json_encode($tasks_by_emp, JSON_HEX_TAG) ?>;
+var CHECKLIST_BY_EMP = <?= json_encode($checklist_by_emp, JSON_HEX_TAG) ?>;
 var TODAY = '<?= $today ?>';
 
 var STATUS_LABELS = {
@@ -426,8 +478,25 @@ var STATUS_CLASSES = {
 var PRI_COLORS = { critical:'#ef4444', high:'#f97316', medium:'#eab308', low:'#6b7280' };
 
 function showTasks(empId, empName) {
-  var tasks = TASKS_BY_EMP[empId] || [];
+  var tasks     = TASKS_BY_EMP[empId] || [];
+  var checklist = CHECKLIST_BY_EMP[empId] || [];
   document.getElementById('task-modal-name').textContent = empName;
+
+  var ctbody = document.getElementById('checklist-modal-body');
+  ctbody.innerHTML = '';
+  if (!checklist.length) {
+    ctbody.innerHTML = '<tr><td colspan="2" style="text-align:center;padding:1.5rem;color:rgba(240,240,240,.3)">No checklist for today.</td></tr>';
+  } else {
+    checklist.forEach(function(c) {
+      var row = '<tr>'
+        + '<td style="' + (c.is_completed ? 'color:rgba(240,240,240,.45);text-decoration:line-through' : '') + '">' + escHtml(c.title) + '</td>'
+        + '<td>' + (c.is_completed
+            ? '<span class="badge badge-success" style="font-size:.7rem"><i class="fa fa-check"></i> Done</span>'
+            : '<span class="badge badge-muted" style="font-size:.7rem"><i class="fa fa-circle"></i> Pending</span>')
+        + '</td></tr>';
+      ctbody.insertAdjacentHTML('beforeend', row);
+    });
+  }
 
   var tbody = document.getElementById('task-modal-body');
   tbody.innerHTML = '';
