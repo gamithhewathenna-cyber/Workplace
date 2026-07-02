@@ -9,6 +9,49 @@ if (!is_manager()) { redirect('/todo/projects.php'); }
 
 $eid = current_employee_id();
 
+function notify_project_assignees(array $employeeIds, int $pid, string $projectName, string $clientName, string $priority, ?string $deadline, string $description): void {
+    if (!$employeeIds) return;
+
+    $proj_url = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http')
+              . '://' . $_SERVER['HTTP_HOST'] . "/todo/project_detail.php?id=$pid";
+    $deadline_str = $deadline ? date('d M Y', strtotime($deadline)) : 'Not set';
+
+    $placeholders = implode(',', array_fill(0, count($employeeIds), '?'));
+    $st = db()->prepare("SELECT id,name,email FROM employees WHERE id IN ($placeholders)");
+    $st->execute($employeeIds);
+
+    foreach ($st->fetchAll() as $emp) {
+        add_notification(
+            $emp['id'], 'new_project',
+            'Added to Project',
+            "You've been added to the project: $projectName",
+            "/todo/project_detail.php?id=$pid"
+        );
+
+        if (!$emp['email']) continue;
+
+        $rows = '<tr><td style="padding:.4rem .75rem;color:#888;width:35%;border-bottom:1px solid #1e1e1e">Project</td>'
+              . '<td style="padding:.4rem .75rem;font-weight:600;border-bottom:1px solid #1e1e1e">' . htmlspecialchars($projectName, ENT_QUOTES, 'UTF-8') . '</td></tr>'
+              . '<tr><td style="padding:.4rem .75rem;color:#888;border-bottom:1px solid #1e1e1e">Client</td>'
+              . '<td style="padding:.4rem .75rem;border-bottom:1px solid #1e1e1e">' . htmlspecialchars($clientName ?: '—', ENT_QUOTES, 'UTF-8') . '</td></tr>'
+              . '<tr><td style="padding:.4rem .75rem;color:#888;border-bottom:1px solid #1e1e1e">Priority</td>'
+              . '<td style="padding:.4rem .75rem;border-bottom:1px solid #1e1e1e;text-transform:capitalize">' . htmlspecialchars($priority, ENT_QUOTES, 'UTF-8') . '</td></tr>'
+              . '<tr><td style="padding:.4rem .75rem;color:#888">Deadline</td>'
+              . '<td style="padding:.4rem .75rem">' . $deadline_str . '</td></tr>';
+        if ($description) {
+            $rows .= '<tr><td colspan="2" style="padding:.75rem .75rem 0;color:#888;font-size:.85rem">'
+                   . htmlspecialchars($description, ENT_QUOTES, 'UTF-8') . '</td></tr>';
+        }
+
+        $body = '<p>Hi <strong>' . htmlspecialchars($emp['name'], ENT_QUOTES, 'UTF-8') . '</strong>,</p>'
+              . '<p>You have been assigned to a project:</p>'
+              . '<table style="width:100%;border-collapse:collapse;background:#0d0d0d;border-radius:8px;overflow:hidden;margin:.75rem 0">' . $rows . '</table>';
+
+        send_mail($emp['email'], $emp['name'], 'New Project Assignment: ' . $projectName,
+            mail_template('You have a new project', $body, 'View Project', $proj_url));
+    }
+}
+
 // ── Handle POST ────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
@@ -31,12 +74,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pid = (int)db()->lastInsertId();
 
         // Assign employees
+        $assignedIds = [];
         if (!empty($_POST['employees']) && is_array($_POST['employees'])) {
             $ins = db()->prepare("INSERT IGNORE INTO project_employees (project_id, employee_id) VALUES (?,?)");
             foreach ($_POST['employees'] as $emp_id) {
-                $ins->execute([$pid, (int)$emp_id]);
+                $emp_id = (int)$emp_id;
+                $ins->execute([$pid, $emp_id]);
+                $assignedIds[] = $emp_id;
             }
         }
+
+        $clientName = '';
+        if (!empty($_POST['client_id'])) {
+            $cn = db()->prepare("SELECT name FROM clients WHERE id=?");
+            $cn->execute([$_POST['client_id']]);
+            $clientName = (string)$cn->fetchColumn();
+        }
+        notify_project_assignees($assignedIds, $pid, $name, $clientName, $_POST['priority'] ?? 'medium', $_POST['deadline'] ?: null, trim($_POST['description'] ?? ''));
 
         flash('success', 'Project created successfully.');
         redirect("projects.php");
@@ -58,13 +112,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                $pid,
            ]);
 
+        // Existing team, captured before re-sync so we only notify new additions
+        $oldTeamStmt = db()->prepare("SELECT employee_id FROM project_employees WHERE project_id=?");
+        $oldTeamStmt->execute([$pid]);
+        $oldTeam = array_map('intval', array_column($oldTeamStmt->fetchAll(), 'employee_id'));
+
         // Re-sync team
         db()->prepare("DELETE FROM project_employees WHERE project_id=?")->execute([$pid]);
+        $newTeam = [];
         if (!empty($_POST['employees']) && is_array($_POST['employees'])) {
             $ins = db()->prepare("INSERT IGNORE INTO project_employees (project_id, employee_id) VALUES (?,?)");
             foreach ($_POST['employees'] as $emp_id) {
-                $ins->execute([$pid, (int)$emp_id]);
+                $emp_id = (int)$emp_id;
+                $ins->execute([$pid, $emp_id]);
+                $newTeam[] = $emp_id;
             }
+        }
+
+        $newlyAdded = array_diff($newTeam, $oldTeam);
+        if ($newlyAdded) {
+            $clientName = '';
+            if (!empty($_POST['client_id'])) {
+                $cn = db()->prepare("SELECT name FROM clients WHERE id=?");
+                $cn->execute([$_POST['client_id']]);
+                $clientName = (string)$cn->fetchColumn();
+            }
+            notify_project_assignees($newlyAdded, $pid, trim($_POST['name'] ?? ''), $clientName, $_POST['priority'] ?? 'medium', $_POST['deadline'] ?: null, trim($_POST['description'] ?? ''));
         }
 
         flash('success', 'Project updated.');
