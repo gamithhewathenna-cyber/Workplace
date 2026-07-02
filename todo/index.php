@@ -290,6 +290,7 @@ $error   = get_flash('error');
     </div>
     <?php endif; ?>
 
+    <?php if (($_SESSION['role'] ?? '') !== 'admin'): ?>
     <!-- Assigned Tasks -->
     <section class="section-card">
       <div class="section-header">
@@ -327,6 +328,7 @@ $error   = get_flash('error');
         <?php endif; ?>
       </div>
     </section>
+    <?php endif; ?>
 
     <?php if ($is_mgr): ?>
     <!-- Team's Daily Checklist -->
