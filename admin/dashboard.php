@@ -25,36 +25,8 @@ $live_sessions = db()->query("
     ORDER BY tt.started_at ASC
 ")->fetchAll();
 
-// ── Active employees ─────────────────────────────────────────
-$employees = db()->query("
-    SELECT id, name, position, role
-    FROM employees
-    WHERE status = 'active'
-    ORDER BY name ASC
-")->fetchAll();
-
 $today  = date('Y-m-d');
 $now_ts = time();
-
-// ── Today's daily checklist grouped by employee ─────────────
-$checklist_rows = db()->prepare("
-    SELECT dc.employee_id, ct.title, dc.is_completed
-    FROM daily_checklist dc
-    JOIN checklist_templates ct ON ct.id = dc.template_id
-    WHERE dc.check_date = ?
-    ORDER BY ct.sort_order
-");
-$checklist_rows->execute([$today]);
-
-$checklist_by_emp = [];
-$checklist_counts = [];
-foreach ($checklist_rows->fetchAll() as $r) {
-    $eidRow = (int)$r['employee_id'];
-    $checklist_by_emp[$eidRow][] = ['title' => $r['title'], 'is_completed' => (bool)$r['is_completed']];
-    $checklist_counts[$eidRow]['total'] = ($checklist_counts[$eidRow]['total'] ?? 0) + 1;
-    $checklist_counts[$eidRow]['done']  = ($checklist_counts[$eidRow]['done']  ?? 0) + ($r['is_completed'] ? 1 : 0);
-}
-
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -137,39 +109,6 @@ foreach ($checklist_rows->fetchAll() as $r) {
 .pri-high     { background: #f97316; }
 .pri-medium   { background: #eab308; }
 .pri-low      { background: #6b7280; }
-
-.emp-avatar-sm {
-  width: 34px; height: 34px;
-  border-radius: 9px;
-  background: rgba(125,69,154,.2);
-  display: inline-flex; align-items: center; justify-content: center;
-  font-weight: 700; font-size: .78rem; color: #c084fc;
-  flex-shrink: 0;
-}
-
-/* ── Section label ── */
-.section-label {
-  font-size: .7rem; font-weight: 700; letter-spacing: .08em;
-  text-transform: uppercase; color: rgba(240,240,240,.35);
-  margin: 1.5rem 0 .75rem;
-}
-
-/* ── Per-employee daily checklist cards ── */
-.checklist-cards-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 1rem;
-}
-.checklist-emp-card { padding: 1.1rem 1.25rem; }
-.checklist-emp-card .section-header { margin-bottom: .75rem; }
-.chk-item-row {
-  display: flex; align-items: center; gap: .55rem;
-  padding: .5rem 0;
-  border-bottom: 1px solid var(--clr-border);
-  font-size: .85rem;
-}
-.chk-item-row:last-child { border-bottom: none; }
-.chk-item-row .chk-title { flex: 1; }
 </style>
 </head>
 <body>
@@ -247,53 +186,6 @@ foreach ($checklist_rows->fetchAll() as $r) {
       <?php endforeach; ?>
     </div>
     <?php endif; ?>
-
-    <!-- Per-Employee Daily Checklist -->
-    <div class="section-label"><i class="fa fa-list-check" style="margin-right:.4rem"></i>Daily Checklist — <?= date('d M Y', strtotime($today)) ?></div>
-    <div class="checklist-cards-grid">
-      <?php foreach ($employees as $emp):
-          $emp_check = $checklist_by_emp[$emp['id']] ?? [];
-          $chk_done  = $checklist_counts[$emp['id']]['done']  ?? 0;
-          $chk_total = $checklist_counts[$emp['id']]['total'] ?? 0;
-          $chk_pct   = $chk_total ? round($chk_done / $chk_total * 100) : 0;
-      ?>
-      <div class="section-card checklist-emp-card">
-        <div class="section-header">
-          <div style="display:flex;align-items:center;gap:.65rem">
-            <div class="emp-avatar-sm"><?= strtoupper(substr($emp['name'], 0, 1)) ?></div>
-            <div>
-              <h2 style="font-size:.92rem;margin:0"><?= h($emp['name']) ?></h2>
-              <div style="font-size:.72rem;color:rgba(240,240,240,.4)"><?= h($emp['position'] ?? $emp['role']) ?></div>
-            </div>
-          </div>
-          <span class="badge <?= !$chk_total ? 'badge-secondary' : ($chk_pct === 100 ? 'badge-success' : 'badge-info') ?>"><?= $chk_done ?>/<?= $chk_total ?></span>
-        </div>
-        <?php if ($chk_total): ?>
-        <div class="progress-bar-wrap" style="margin-bottom:.85rem">
-          <div class="progress-bar <?= $chk_pct === 100 ? 'bar-green' : '' ?>" style="width:<?= $chk_pct ?>%"></div>
-        </div>
-        <?php endif; ?>
-        <div>
-          <?php if (!$emp_check): ?>
-            <p class="empty-state" style="padding:.5rem 0">No checklist assigned today.</p>
-          <?php else: foreach ($emp_check as $it): ?>
-            <div class="chk-item-row">
-              <?php if ($it['is_completed']): ?>
-                <i class="fa fa-circle-check" style="color:#4ade80"></i>
-              <?php else: ?>
-                <i class="fa fa-clock" style="color:#eab308"></i>
-              <?php endif; ?>
-              <span class="chk-title" style="<?= $it['is_completed'] ? 'text-decoration:line-through;color:var(--clr-muted)' : '' ?>"><?= h($it['title']) ?></span>
-              <span class="badge <?= $it['is_completed'] ? 'badge-success' : 'badge-warning' ?>" style="font-size:.65rem"><?= $it['is_completed'] ? 'Completed' : 'Pending' ?></span>
-            </div>
-          <?php endforeach; endif; ?>
-        </div>
-      </div>
-      <?php endforeach; ?>
-      <?php if (!$employees): ?>
-        <p class="empty-state">No active employees.</p>
-      <?php endif; ?>
-    </div>
 
   </main>
 </div>

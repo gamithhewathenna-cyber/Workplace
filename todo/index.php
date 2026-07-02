@@ -60,34 +60,18 @@ $notifs = db()->prepare("SELECT * FROM notifications WHERE user_id=? AND is_read
 $notifs->execute([$eid]);
 $notifications = $notifs->fetchAll();
 
-// ── Team overview: each employee's daily checklist + project tasks (managers only)
+// ── Team's daily checklist, one card per employee (managers only) ──
 $is_mgr = is_manager();
-$team_tasks_by_emp     = [];
 $team_checklist_by_emp = [];
 $team_checklist_counts = [];
 $team_employees        = [];
 if ($is_mgr) {
     $team_employees = db()->query("
-        SELECT e.id, e.name, e.position, e.role,
-            COUNT(DISTINCT CASE WHEN t.status NOT IN ('completed','cancelled') THEN t.id END) AS open_tasks
-        FROM employees e
-        LEFT JOIN tasks t ON t.assigned_to = e.id
-        WHERE e.status = 'active'
-        GROUP BY e.id, e.name, e.position, e.role
-        ORDER BY e.name ASC
+        SELECT id, name, position, role
+        FROM employees
+        WHERE status = 'active'
+        ORDER BY name ASC
     ")->fetchAll();
-
-    $team_open_tasks = db()->query("
-        SELECT t.id, t.title, t.status, t.priority, t.due_date, t.assigned_to,
-               c.name AS client_name
-        FROM tasks t
-        LEFT JOIN clients c ON c.id = t.client_id
-        WHERE t.status NOT IN ('completed','cancelled')
-        ORDER BY FIELD(t.priority,'critical','high','medium','low'), t.due_date ASC
-    ")->fetchAll();
-    foreach ($team_open_tasks as $t) {
-        $team_tasks_by_emp[(int)$t['assigned_to']][] = $t;
-    }
 
     $team_checklist_rows = db()->prepare("
         SELECT dc.employee_id, ct.title, dc.is_completed
@@ -327,64 +311,52 @@ $error   = get_flash('error');
     </section>
 
     <?php if ($is_mgr): ?>
-    <!-- Team Overview -->
-    <section class="section-card">
-      <div class="section-header">
-        <h2><i class="fa fa-users"></i> Team Overview</h2>
-        <span class="badge"><?= count($team_employees) ?></span>
+    <!-- Team's Daily Checklist -->
+    <div class="section-label"><i class="fa fa-list-check" style="margin-right:.4rem"></i>Team's Daily Checklist — <?= date('d M Y', strtotime($today)) ?></div>
+    <div class="checklist-cards-grid">
+      <?php foreach ($team_employees as $te):
+          $te_check = $team_checklist_by_emp[$te['id']] ?? [];
+          $te_done  = $team_checklist_counts[$te['id']]['done']  ?? 0;
+          $te_total = $team_checklist_counts[$te['id']]['total'] ?? 0;
+          $te_pct   = $te_total ? round($te_done / $te_total * 100) : 0;
+      ?>
+      <div class="section-card checklist-emp-card">
+        <div class="section-header">
+          <div style="display:flex;align-items:center;gap:.65rem">
+            <div class="emp-avatar-sm"><?= strtoupper(substr($te['name'], 0, 1)) ?></div>
+            <div>
+              <h2 style="font-size:.92rem;margin:0"><?= h($te['name']) ?></h2>
+              <div style="font-size:.72rem;color:var(--clr-muted)"><?= h($te['position'] ?? $te['role']) ?></div>
+            </div>
+          </div>
+          <span class="badge <?= !$te_total ? 'badge-secondary' : ($te_pct === 100 ? 'badge-success' : 'badge-info') ?>"><?= $te_done ?>/<?= $te_total ?></span>
+        </div>
+        <?php if ($te_total): ?>
+        <div class="progress-bar-wrap" style="margin-bottom:.85rem">
+          <div class="progress-bar <?= $te_pct === 100 ? 'bar-green' : '' ?>" style="width:<?= $te_pct ?>%"></div>
+        </div>
+        <?php endif; ?>
+        <div>
+          <?php if (!$te_check): ?>
+            <p class="empty-state" style="padding:.5rem 0">No checklist assigned today.</p>
+          <?php else: foreach ($te_check as $it): ?>
+            <div class="chk-item-row">
+              <?php if ($it['is_completed']): ?>
+                <i class="fa fa-circle-check" style="color:#4ade80"></i>
+              <?php else: ?>
+                <i class="fa fa-clock" style="color:#eab308"></i>
+              <?php endif; ?>
+              <span class="chk-title" style="<?= $it['is_completed'] ? 'text-decoration:line-through;color:var(--clr-muted)' : '' ?>"><?= h($it['title']) ?></span>
+              <span class="badge <?= $it['is_completed'] ? 'badge-success' : 'badge-warning' ?>" style="font-size:.65rem"><?= $it['is_completed'] ? 'Completed' : 'Pending' ?></span>
+            </div>
+          <?php endforeach; endif; ?>
+        </div>
       </div>
-      <div class="table-responsive">
-        <table class="data-table">
-          <thead>
-            <tr><th>Employee</th><th>Daily Checklist</th><th>Open Tasks</th><th>Details</th></tr>
-          </thead>
-          <tbody>
-            <?php foreach ($team_employees as $te):
-                $te_tasks  = $team_tasks_by_emp[$te['id']] ?? [];
-                $te_check  = $team_checklist_by_emp[$te['id']] ?? [];
-                $te_done   = $team_checklist_counts[$te['id']]['done']  ?? 0;
-                $te_total  = $team_checklist_counts[$te['id']]['total'] ?? 0;
-                $te_pct    = $te_total ? round($te_done / $te_total * 100) : 0;
-            ?>
-            <tr>
-              <td>
-                <div style="display:flex;align-items:center;gap:.6rem">
-                  <div style="width:30px;height:30px;border-radius:50%;background:var(--clr-primary);color:#fff;display:grid;place-items:center;font-weight:700;font-size:.78rem;flex-shrink:0"><?= strtoupper(substr($te['name'], 0, 1)) ?></div>
-                  <div>
-                    <div style="font-weight:600;font-size:.85rem"><?= h($te['name']) ?></div>
-                    <div style="font-size:.72rem;color:var(--clr-muted)"><?= h($te['position'] ?? $te['role']) ?></div>
-                  </div>
-                </div>
-              </td>
-              <td>
-                <?php if ($te_total): ?>
-                  <span style="font-weight:600;color:<?= $te_pct === 100 ? 'var(--clr-success)' : 'inherit' ?>"><?= $te_done ?>/<?= $te_total ?></span>
-                  <div class="progress-bar-wrap" style="width:90px;display:inline-block;vertical-align:middle;margin-left:.5rem">
-                    <div class="progress-bar <?= $te_pct === 100 ? 'bar-green' : '' ?>" style="width:<?= $te_pct ?>%"></div>
-                  </div>
-                <?php else: ?>
-                  <span class="text-muted">No checklist</span>
-                <?php endif; ?>
-              </td>
-              <td><?= count($te_tasks) ?></td>
-              <td>
-                <?php if ($te_tasks || $te_check): ?>
-                  <button class="btn btn-xs btn-outline" onclick='showTeamWork(<?= $te['id'] ?>, <?= json_encode($te['name'], JSON_HEX_APOS) ?>)'>
-                    <i class="fa fa-list"></i> View
-                  </button>
-                <?php else: ?>
-                  <span class="text-muted">—</span>
-                <?php endif; ?>
-              </td>
-            </tr>
-            <?php endforeach; ?>
-            <?php if (!$team_employees): ?>
-              <tr><td colspan="4" class="text-center text-muted">No active employees.</td></tr>
-            <?php endif; ?>
-          </tbody>
-        </table>
-      </div>
-    </section>
+      <?php endforeach; ?>
+      <?php if (!$team_employees): ?>
+        <p class="empty-state">No active employees.</p>
+      <?php endif; ?>
+    </div>
     <?php endif; ?>
 
     <!-- Performance Stats -->
@@ -416,95 +388,6 @@ $error   = get_flash('error');
     </section>
   </main>
 </div>
-
-<?php if ($is_mgr): ?>
-<!-- Team member work modal -->
-<div id="team-work-modal" class="modal-overlay" style="display:none">
-  <div class="modal" style="max-width:700px">
-    <div class="modal-header">
-      <h3><i class="fa fa-clipboard-list"></i> <span id="team-work-name"></span>'s Work Today</h3>
-      <button onclick="closeModal('team-work-modal')" class="modal-close">&times;</button>
-    </div>
-
-    <div class="section-header" style="margin-top:0"><h2 style="font-size:.9rem"><i class="fa fa-list-check"></i> Daily Checklist</h2></div>
-    <div class="table-responsive" style="margin-bottom:1.25rem">
-      <table class="data-table" id="team-checklist-table">
-        <thead><tr><th>Task</th><th>Status</th></tr></thead>
-        <tbody id="team-checklist-body"></tbody>
-      </table>
-    </div>
-
-    <div class="section-header"><h2 style="font-size:.9rem"><i class="fa fa-diagram-project"></i> Project Tasks</h2></div>
-    <div class="table-responsive">
-      <table class="data-table" id="team-tasks-table">
-        <thead><tr><th>Task</th><th>Priority</th><th>Status</th><th>Due Date</th><th>Client</th></tr></thead>
-        <tbody id="team-tasks-body"></tbody>
-      </table>
-    </div>
-  </div>
-</div>
-
-<script>
-var TEAM_TASKS_BY_EMP     = <?= json_encode($team_tasks_by_emp, JSON_HEX_TAG) ?>;
-var TEAM_CHECKLIST_BY_EMP = <?= json_encode($team_checklist_by_emp, JSON_HEX_TAG) ?>;
-var TEAM_TODAY = '<?= $today ?>';
-var TEAM_STATUS_LABELS = { not_started:'Not Started', in_progress:'In Progress', waiting_client:'Waiting Client', under_review:'Under Review' };
-var TEAM_STATUS_CLASSES = { not_started:'badge-muted', in_progress:'badge-primary', waiting_client:'badge-warning', under_review:'badge-info' };
-var TEAM_PRI_COLORS = { critical:'#ef4444', high:'#f97316', medium:'#eab308', low:'#6b7280' };
-
-function teamEscHtml(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-function showTeamWork(empId, empName) {
-  var tasks     = TEAM_TASKS_BY_EMP[empId] || [];
-  var checklist = TEAM_CHECKLIST_BY_EMP[empId] || [];
-  document.getElementById('team-work-name').textContent = empName;
-
-  var cbody = document.getElementById('team-checklist-body');
-  cbody.innerHTML = '';
-  if (!checklist.length) {
-    cbody.innerHTML = '<tr><td colspan="2" class="text-center text-muted">No checklist for today.</td></tr>';
-  } else {
-    checklist.forEach(function (c) {
-      cbody.insertAdjacentHTML('beforeend', '<tr>'
-        + '<td style="' + (c.is_completed ? 'text-decoration:line-through;color:var(--clr-muted)' : '') + '">' + teamEscHtml(c.title) + '</td>'
-        + '<td>' + (c.is_completed
-            ? '<span class="badge badge-success"><i class="fa fa-check"></i> Done</span>'
-            : '<span class="badge badge-secondary"><i class="fa fa-circle"></i> Pending</span>')
-        + '</td></tr>');
-    });
-  }
-
-  var tbody = document.getElementById('team-tasks-body');
-  tbody.innerHTML = '';
-  if (!tasks.length) {
-    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No open tasks.</td></tr>';
-  } else {
-    tasks.forEach(function (t) {
-      var due      = t.due_date || '';
-      var overdue  = due && due < TEAM_TODAY;
-      var dueLabel = due ? new Date(due + 'T00:00:00').toLocaleDateString('en-GB', {day:'2-digit',month:'short',year:'numeric'}) : '—';
-      var priColor = TEAM_PRI_COLORS[t.priority] || '#6b7280';
-      var statusLabel = TEAM_STATUS_LABELS[t.status] || t.status;
-      var statusClass = TEAM_STATUS_CLASSES[t.status] || 'badge-muted';
-      tbody.insertAdjacentHTML('beforeend', '<tr>'
-        + '<td><a href="/todo/task_detail.php?id=' + t.id + '" style="text-decoration:none;font-weight:500">'
-        +   '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + priColor + ';margin-right:.5rem;vertical-align:middle"></span>'
-        +   teamEscHtml(t.title)
-        + '</a></td>'
-        + '<td style="text-transform:capitalize">' + teamEscHtml(t.priority) + '</td>'
-        + '<td><span class="badge ' + statusClass + '">' + statusLabel + '</span></td>'
-        + '<td class="' + (overdue ? 'text-danger' : '') + '">' + dueLabel + (overdue ? ' ⚠' : '') + '</td>'
-        + '<td>' + (t.client_name ? teamEscHtml(t.client_name) : '—') + '</td>'
-        + '</tr>');
-    });
-  }
-
-  openModal('team-work-modal');
-}
-</script>
-<?php endif; ?>
 
 <script>
 // Live clock
