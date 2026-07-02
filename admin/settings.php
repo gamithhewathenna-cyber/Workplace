@@ -505,6 +505,7 @@ $logo_url = $cfg['company_logo']
   </main>
 </div>
 
+<script src="/assets/js/portal.js"></script>
 <script>
 function togglePw(id, btn) {
   var inp = document.getElementById(id);

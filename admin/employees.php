@@ -631,6 +631,7 @@ if (isset($_GET['edit'])) {
   </div>
 </div>
 
+<script src="/assets/js/portal.js"></script>
 <script>
 function openModal(id) {
   document.getElementById(id).style.display = 'grid';

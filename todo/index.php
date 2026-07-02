@@ -458,6 +458,7 @@ $error   = get_flash('error');
   </main>
 </div>
 
+<script src="/assets/js/portal.js"></script>
 <script>
 // Live clock
 setInterval(() => {
