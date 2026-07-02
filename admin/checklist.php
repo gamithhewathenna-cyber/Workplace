@@ -8,7 +8,8 @@ require_once __DIR__ . '/../includes/config.php';
 require_login();
 if (!is_manager()) redirect('/todo/index.php');
 
-$eid = current_employee_id();
+$eid     = current_employee_id();
+$isAdmin = ($_SESSION['role'] ?? '') === 'admin';
 
 function checklist_scope_from_post(): string {
     return ($_POST['scope'] ?? 'all') === 'specific' ? 'specific' : 'all';
@@ -30,6 +31,8 @@ function checklist_save_assignees(int $templateId, string $scope, array $employe
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!$isAdmin) redirect('checklist.php'); // only full admins manage checklist templates
+
     $action = $_POST['action'] ?? '';
 
     if ($action === 'add') {
@@ -67,16 +70,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     redirect('checklist.php');
 }
 
-$items = db()->query("
+$itemsSql = "
     SELECT ct.*,
            GROUP_CONCAT(e.id ORDER BY e.name SEPARATOR ',')   AS assignee_ids,
            GROUP_CONCAT(e.name ORDER BY e.name SEPARATOR ', ') AS assignee_names
     FROM checklist_templates ct
     LEFT JOIN checklist_template_assignees cta ON cta.template_id = ct.id
     LEFT JOIN employees e ON e.id = cta.employee_id
-    GROUP BY ct.id
-    ORDER BY ct.sort_order, ct.id
-")->fetchAll();
+";
+if ($isAdmin) {
+    $itemsSql .= " GROUP BY ct.id ORDER BY ct.sort_order, ct.id";
+    $items = db()->query($itemsSql)->fetchAll();
+} else {
+    // Managers/HR only see items that apply to them: global items, or items specifically assigned to them
+    $itemsSql .= "
+        WHERE ct.scope = 'all' OR EXISTS (
+            SELECT 1 FROM checklist_template_assignees cta2
+            WHERE cta2.template_id = ct.id AND cta2.employee_id = ?
+        )
+        GROUP BY ct.id ORDER BY ct.sort_order, ct.id
+    ";
+    $itemsStmt = db()->prepare($itemsSql);
+    $itemsStmt->execute([$eid]);
+    $items = $itemsStmt->fetchAll();
+}
 
 $employees = db()->query("SELECT id, name FROM employees WHERE status='active' ORDER BY name")->fetchAll();
 
@@ -84,15 +101,22 @@ $employees = db()->query("SELECT id, name FROM employees WHERE status='active' O
 $monitor_date = $_GET['date'] ?? date('Y-m-d');
 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $monitor_date)) $monitor_date = date('Y-m-d');
 
-$mrows = db()->prepare("
+$monitorSql = "
     SELECT e.id AS emp_id, e.name AS emp_name, ct.title, dc.is_completed, dc.completed_at
     FROM employees e
     LEFT JOIN daily_checklist dc ON dc.employee_id = e.id AND dc.check_date = ?
     LEFT JOIN checklist_templates ct ON ct.id = dc.template_id
     WHERE e.status = 'active'
-    ORDER BY e.name, ct.sort_order
-");
-$mrows->execute([$monitor_date]);
+";
+$monitorParams = [$monitor_date];
+if (!$isAdmin) {
+    // Managers/HR only monitor their own completion status
+    $monitorSql .= " AND e.id = ?";
+    $monitorParams[] = $eid;
+}
+$monitorSql .= " ORDER BY e.name, ct.sort_order";
+$mrows = db()->prepare($monitorSql);
+$mrows->execute($monitorParams);
 $mrows = $mrows->fetchAll();
 
 $byEmp = [];
@@ -125,7 +149,14 @@ $success = get_flash('success');
     </div>
     <?php if ($success): ?><div class="alert alert-success"><?= h($success) ?></div><?php endif; ?>
 
-    <div class="two-col">
+    <?php if (!$isAdmin): ?>
+    <div class="alert" style="background:rgba(41,128,185,.1);color:var(--clr-info);border:1px solid rgba(41,128,185,.25)">
+      <i class="fa fa-circle-info"></i> You're viewing your own checklist items and completion status. Only full admins can create, edit, or manage checklist items for other employees.
+    </div>
+    <?php endif; ?>
+
+    <div class="<?= $isAdmin ? 'two-col' : '' ?>">
+      <?php if ($isAdmin): ?>
       <!-- Add New -->
       <section class="section-card">
         <div class="section-header"><h2><i class="fa fa-plus"></i> Add Item</h2></div>
@@ -157,10 +188,11 @@ $success = get_flash('success');
           <button class="btn btn-primary"><i class="fa fa-plus"></i> Add to Checklist</button>
         </form>
       </section>
+      <?php endif; ?>
 
       <!-- Items List -->
       <section class="section-card">
-        <div class="section-header"><h2><i class="fa fa-th-list"></i> Current Items (<?= count($items) ?>)</h2></div>
+        <div class="section-header"><h2><i class="fa fa-th-list"></i> <?= $isAdmin ? 'Current Items' : 'My Checklist Items' ?> (<?= count($items) ?>)</h2></div>
         <div class="checklist">
           <?php foreach ($items as $item): ?>
           <div class="checklist-item" style="justify-content:space-between; border:1px solid var(--clr-border); border-radius:8px; margin-bottom:.5rem; padding:.75rem">
@@ -178,6 +210,7 @@ $success = get_flash('success');
                 <?php endif; ?>
               </div>
             </div>
+            <?php if ($isAdmin): ?>
             <div style="display:flex; gap:.35rem">
               <button onclick='editItem(<?= json_encode([
                   "id" => (int)$item["id"],
@@ -198,6 +231,7 @@ $success = get_flash('success');
                 <button class="btn btn-xs btn-danger" data-confirm="Delete this checklist item?"><i class="fa fa-trash"></i></button>
               </form>
             </div>
+            <?php endif; ?>
           </div>
           <?php endforeach; ?>
           <?php if (!$items): ?><p class="empty-state">No checklist items yet.</p><?php endif; ?>
@@ -208,7 +242,7 @@ $success = get_flash('success');
     <!-- Completion Monitoring -->
     <section class="section-card">
       <div class="section-header">
-        <h2><i class="fa fa-user-check"></i> Employee Completion Status</h2>
+        <h2><i class="fa fa-user-check"></i> <?= $isAdmin ? 'Employee Completion Status' : 'My Completion Status' ?></h2>
         <form method="get" style="display:flex;align-items:center;gap:.5rem">
           <input type="date" name="date" class="input input-sm" value="<?= h($monitor_date) ?>" onchange="this.form.submit()">
         </form>
@@ -255,6 +289,7 @@ $success = get_flash('success');
   </main>
 </div>
 
+<?php if ($isAdmin): ?>
 <!-- Edit Modal -->
 <div id="edit-modal" class="modal-overlay" style="display:none">
   <div class="modal modal-sm">
@@ -291,6 +326,7 @@ $success = get_flash('success');
     </form>
   </div>
 </div>
+<?php endif; ?>
 
 <script src="/assets/js/portal.js"></script>
 <script>
