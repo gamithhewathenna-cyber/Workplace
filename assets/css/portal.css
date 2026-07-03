@@ -833,7 +833,7 @@ body.chat-panel-open .chat-windows-container { right: 23.5rem; }
   background: var(--clr-primary);
   color: #fff;
   flex-shrink: 0;
-  cursor: default;
+  cursor: pointer;
 }
 .chat-float-avatar {
   width: 26px; height: 26px;
@@ -846,7 +846,19 @@ body.chat-panel-open .chat-windows-container { right: 23.5rem; }
   flex-shrink: 0;
 }
 .chat-float-name { flex: 1; font-weight: 600; font-size: .82rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.chat-float-close {
+.chat-float-header-badge {
+  min-width: 17px; height: 17px;
+  border-radius: 9px;
+  background: var(--clr-danger);
+  color: #fff;
+  font-size: .62rem;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  padding: 0 .3rem;
+  flex-shrink: 0;
+}
+.chat-float-minimize, .chat-float-close {
   background: rgba(255,255,255,.15);
   border: none;
   color: #fff;
@@ -858,7 +870,15 @@ body.chat-panel-open .chat-windows-container { right: 23.5rem; }
   flex-shrink: 0;
   font-size: .78rem;
 }
-.chat-float-close:hover { background: rgba(255,255,255,.28); }
+.chat-float-minimize:hover, .chat-float-close:hover { background: rgba(255,255,255,.28); }
+
+/* Minimized: only the header bar shows, message area + input collapse away */
+.chat-float-window.minimized {
+  height: auto;
+}
+.chat-float-window.minimized .chat-thread-view {
+  display: none;
+}
 
 @media (max-width: 480px) {
   .chat-panel { right: .75rem; left: .75rem; width: auto; bottom: 4.75rem; }
@@ -866,6 +886,7 @@ body.chat-panel-open .chat-windows-container { right: 23.5rem; }
   .chat-windows-container { right: 0; left: 0; bottom: 0; justify-content: center; z-index: 910; }
   body.chat-panel-open .chat-windows-container { right: 0; }
   .chat-float-window { width: calc(100vw - 1.5rem); height: 70vh; }
+  .chat-float-window.minimized { width: 200px; }
 }
 
 /* ── Alerts ─────────────────────────────────────────────── */

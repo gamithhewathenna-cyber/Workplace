@@ -140,6 +140,8 @@
       '<div class="chat-float-header">' +
         '<div class="chat-float-avatar">' + escHtml(name.charAt(0).toUpperCase()) + '</div>' +
         '<span class="chat-float-name">' + escHtml(name) + '</span>' +
+        '<span class="chat-float-header-badge" style="display:none"></span>' +
+        '<button type="button" class="chat-float-minimize" aria-label="Minimize"><i class="fa fa-minus"></i></button>' +
         '<button type="button" class="chat-float-close" aria-label="Close"><i class="fa fa-xmark"></i></button>' +
       '</div>' +
       '<div class="chat-thread-view">' +
@@ -151,10 +153,35 @@
       '</div>';
     winsBox.appendChild(el);
 
-    var win = { id: id, name: name, el: el, lastMsgId: 0, pollTimer: null };
+    var win = { id: id, name: name, el: el, lastMsgId: 0, pollTimer: null, minimized: false, unreadWhileMinimized: 0 };
     openWindows.push(win);
 
-    el.querySelector('.chat-float-close').addEventListener('click', function () { closeChatWindow(id); });
+    var headerEl    = el.querySelector('.chat-float-header');
+    var minimizeBtn = el.querySelector('.chat-float-minimize');
+    var headerBadge = el.querySelector('.chat-float-header-badge');
+
+    function setMinimized(val) {
+      win.minimized = val;
+      el.classList.toggle('minimized', val);
+      minimizeBtn.innerHTML = val ? '<i class="fa fa-chevron-up"></i>' : '<i class="fa fa-minus"></i>';
+      if (!val) {
+        win.unreadWhileMinimized = 0;
+        headerBadge.style.display = 'none';
+        var msgsEl = el.querySelector('.chat-thread-messages');
+        msgsEl.scrollTop = msgsEl.scrollHeight;
+        el.querySelector('.chat-float-input').focus();
+      }
+    }
+
+    headerEl.addEventListener('click', function () { setMinimized(!win.minimized); });
+    minimizeBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      setMinimized(!win.minimized);
+    });
+    el.querySelector('.chat-float-close').addEventListener('click', function (e) {
+      e.stopPropagation();
+      closeChatWindow(id);
+    });
     el.querySelector('.chat-send-form').addEventListener('submit', function (e) {
       e.preventDefault();
       sendMessage(win);
@@ -185,7 +212,16 @@
           if (String(m.sender_id) !== String(window.CHAT_MY_ID)) gotIncoming = true;
         });
         win.lastMsgId = data.messages[data.messages.length - 1].id;
-        if (isInitial || gotIncoming) msgsEl.scrollTop = msgsEl.scrollHeight;
+        if (win.minimized) {
+          if (!isInitial && gotIncoming) {
+            win.unreadWhileMinimized++;
+            var headerBadge = win.el.querySelector('.chat-float-header-badge');
+            headerBadge.textContent = win.unreadWhileMinimized;
+            headerBadge.style.display = 'grid';
+          }
+        } else if (isInitial || gotIncoming) {
+          msgsEl.scrollTop = msgsEl.scrollHeight;
+        }
         if (!isInitial && gotIncoming) playNotifySound();
         if (gotIncoming) loadContacts(); // this contact's messages just got marked read server-side
       });
