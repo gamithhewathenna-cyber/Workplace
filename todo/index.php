@@ -75,6 +75,12 @@ if ($is_mgr) {
         ORDER BY name ASC
     ")->fetchAll();
 
+    // Make sure today's checklist exists for every team member, not just
+    // whoever has already logged in and viewed their own dashboard today.
+    foreach ($team_employees as $te) {
+        generate_daily_checklist((int)$te['id'], $today);
+    }
+
     $team_checklist_rows = db()->prepare("
         SELECT dc.employee_id, ct.title, dc.is_completed
         FROM daily_checklist dc
