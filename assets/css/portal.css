@@ -690,7 +690,7 @@ body { font-family: var(--font); background: var(--clr-bg); color: var(--clr-tex
   flex-shrink: 0;
 }
 .chat-panel-header span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.chat-back-btn, .chat-close-btn {
+.chat-close-btn {
   background: rgba(255,255,255,.15);
   border: none;
   color: #fff;
@@ -701,7 +701,7 @@ body { font-family: var(--font); background: var(--clr-bg); color: var(--clr-tex
   place-items: center;
   flex-shrink: 0;
 }
-.chat-back-btn:hover, .chat-close-btn:hover { background: rgba(255,255,255,.28); }
+.chat-close-btn:hover { background: rgba(255,255,255,.28); }
 
 .chat-contacts-list { flex: 1; overflow-y: auto; }
 .chat-contact-item {
@@ -798,9 +798,69 @@ body { font-family: var(--font); background: var(--clr-bg); color: var(--clr-tex
   flex-shrink: 0;
 }
 
+/* ── Multiple floating chat windows (like chat "heads") ─────── */
+.chat-windows-container {
+  position: fixed;
+  right: 6.25rem; bottom: 0;
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: flex-end;
+  gap: .75rem;
+  z-index: 890;
+}
+.chat-float-window {
+  width: 280px;
+  height: 380px;
+  max-height: calc(100vh - 2rem);
+  background: var(--clr-surface);
+  border-radius: var(--radius) var(--radius) 0 0;
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--clr-border);
+  border-bottom: none;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.chat-float-header {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .65rem .75rem;
+  background: var(--clr-primary);
+  color: #fff;
+  flex-shrink: 0;
+  cursor: default;
+}
+.chat-float-avatar {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.2);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: .72rem;
+  flex-shrink: 0;
+}
+.chat-float-name { flex: 1; font-weight: 600; font-size: .82rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-float-close {
+  background: rgba(255,255,255,.15);
+  border: none;
+  color: #fff;
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  font-size: .78rem;
+}
+.chat-float-close:hover { background: rgba(255,255,255,.28); }
+
 @media (max-width: 480px) {
   .chat-panel { right: .75rem; left: .75rem; width: auto; bottom: 4.75rem; }
   .chat-bubble { right: 1rem; bottom: 1rem; }
+  .chat-windows-container { right: 0; left: 0; bottom: 0; justify-content: center; }
+  .chat-float-window { width: calc(100vw - 1.5rem); height: 70vh; }
 }
 
 /* ── Alerts ─────────────────────────────────────────────── */

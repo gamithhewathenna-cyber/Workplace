@@ -1,27 +1,23 @@
-/* assets/js/chat.js — Internal team chat widget (direct messages) */
+/* assets/js/chat.js — Internal team chat widget (direct messages, multiple floating windows) */
 (function () {
-  var bubble      = document.getElementById('chat-bubble');
-  var badge       = document.getElementById('chat-badge');
-  var panel       = document.getElementById('chat-panel');
-  var backBtn     = document.getElementById('chat-back');
-  var closeBtn    = document.getElementById('chat-close');
-  var title       = document.getElementById('chat-panel-title');
-  var listEl      = document.getElementById('chat-contacts-list');
-  var threadView  = document.getElementById('chat-thread-view');
-  var threadMsgs  = document.getElementById('chat-thread-messages');
-  var sendForm    = document.getElementById('chat-send-form');
-  var input       = document.getElementById('chat-input');
+  var bubble    = document.getElementById('chat-bubble');
+  var badge     = document.getElementById('chat-badge');
+  var panel     = document.getElementById('chat-panel');
+  var closeBtn  = document.getElementById('chat-close');
+  var listEl    = document.getElementById('chat-contacts-list');
+  var winsBox   = document.getElementById('chat-windows-container');
 
   if (!bubble) return;
 
-  var activeContactId = null;
-  var activeContactName = '';
-  var lastMsgId = 0;
-  var threadPollTimer = null;
   var contacts = [];
   var lastTotalUnread = 0;
   var contactsLoadedOnce = false;
   var audioCtx = null;
+  var openWindows = []; // { id, name, el, lastMsgId, pollTimer }
+
+  function maxWindows() {
+    return window.innerWidth < 480 ? 1 : 3;
+  }
 
   function playNotifySound() {
     try {
@@ -76,7 +72,7 @@
       .then(function (data) {
         if (!data.ok) return;
         contacts = data.contacts;
-        if (!activeContactId) renderContacts();
+        renderContacts();
         var total = contacts.reduce(function (sum, c) { return sum + parseInt(c.unread_count, 10); }, 0);
         updateBadge(total);
         if (contactsLoadedOnce && total > lastTotalUnread) playNotifySound();
@@ -105,59 +101,115 @@
           (c.last_message_at ? '<span class="chat-contact-time">' + fmtListTime(c.last_message_at) + '</span>' : '') +
           (unread > 0 ? '<span class="chat-unread-dot">' + unread + '</span>' : '') +
         '</div>';
-      el.addEventListener('click', function () { openThread(c.id, c.name); });
+      el.addEventListener('click', function () { openChatWindow(c.id, c.name); });
       listEl.appendChild(el);
     });
   }
 
-  function openThread(id, name) {
-    activeContactId = id;
-    activeContactName = name;
-    lastMsgId = 0;
-    title.textContent = name;
-    backBtn.style.display = 'grid';
-    listEl.style.display = 'none';
-    threadView.style.display = 'flex';
-    threadMsgs.innerHTML = '';
-    loadThread(true);
-    if (threadPollTimer) clearInterval(threadPollTimer);
-    threadPollTimer = setInterval(function () { loadThread(false); }, 4000);
-    input.focus();
+  function findWindow(id) {
+    for (var i = 0; i < openWindows.length; i++) {
+      if (openWindows[i].id === id) return openWindows[i];
+    }
+    return null;
   }
 
-  function closeThread() {
-    activeContactId = null;
-    if (threadPollTimer) { clearInterval(threadPollTimer); threadPollTimer = null; }
-    title.textContent = 'Team Chat';
-    backBtn.style.display = 'none';
-    listEl.style.display = 'block';
-    threadView.style.display = 'none';
-    loadContacts();
-  }
-
-  function loadThread(isInitialOpen) {
-    if (!activeContactId) return;
-    fetch('/api/chat_thread.php?with=' + activeContactId + '&since_id=' + lastMsgId)
-      .then(function (r) { return r.json(); })
-      .then(function (data) {
-        if (!data.ok || !data.messages.length) return;
-        var gotIncoming = false;
-        data.messages.forEach(function (m) {
-          appendMessage(m);
-          if (String(m.sender_id) !== String(window.CHAT_MY_ID)) gotIncoming = true;
-        });
-        lastMsgId = data.messages[data.messages.length - 1].id;
-        if (isInitialOpen !== false || gotIncoming) threadMsgs.scrollTop = threadMsgs.scrollHeight;
-        if (!isInitialOpen && gotIncoming) playNotifySound();
-      });
-  }
-
-  function appendMessage(m) {
+  function appendMessage(msgsEl, m) {
     var mine = String(m.sender_id) === String(window.CHAT_MY_ID);
     var el = document.createElement('div');
     el.className = 'chat-msg ' + (mine ? 'chat-msg-mine' : 'chat-msg-theirs');
     el.innerHTML = escHtml(m.message).replace(/\n/g, '<br>') + '<span class="chat-msg-time">' + fmtTime(m.created_at) + '</span>';
-    threadMsgs.appendChild(el);
+    msgsEl.appendChild(el);
+  }
+
+  function openChatWindow(id, name) {
+    var existing = findWindow(id);
+    if (existing) {
+      existing.el.querySelector('.chat-float-input').focus();
+      return;
+    }
+
+    // Enforce the max concurrent windows by closing the oldest one first —
+    // same "bump the oldest chat head" behavior people expect from Messenger.
+    while (openWindows.length >= maxWindows()) {
+      closeChatWindow(openWindows[0].id);
+    }
+
+    var el = document.createElement('div');
+    el.className = 'chat-float-window';
+    el.innerHTML =
+      '<div class="chat-float-header">' +
+        '<div class="chat-float-avatar">' + escHtml(name.charAt(0).toUpperCase()) + '</div>' +
+        '<span class="chat-float-name">' + escHtml(name) + '</span>' +
+        '<button type="button" class="chat-float-close" aria-label="Close"><i class="fa fa-xmark"></i></button>' +
+      '</div>' +
+      '<div class="chat-thread-view">' +
+        '<div class="chat-thread-messages"></div>' +
+        '<form class="chat-send-form">' +
+          '<input type="text" class="chat-float-input" placeholder="Type a message…" autocomplete="off" maxlength="2000">' +
+          '<button type="submit" aria-label="Send"><i class="fa fa-paper-plane"></i></button>' +
+        '</form>' +
+      '</div>';
+    winsBox.appendChild(el);
+
+    var win = { id: id, name: name, el: el, lastMsgId: 0, pollTimer: null };
+    openWindows.push(win);
+
+    el.querySelector('.chat-float-close').addEventListener('click', function () { closeChatWindow(id); });
+    el.querySelector('.chat-send-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      sendMessage(win);
+    });
+
+    loadWindowThread(win, true);
+    win.pollTimer = setInterval(function () { loadWindowThread(win, false); }, 4000);
+    el.querySelector('.chat-float-input').focus();
+  }
+
+  function closeChatWindow(id) {
+    var win = findWindow(id);
+    if (!win) return;
+    if (win.pollTimer) clearInterval(win.pollTimer);
+    win.el.remove();
+    openWindows = openWindows.filter(function (w) { return w.id !== id; });
+  }
+
+  function loadWindowThread(win, isInitial) {
+    fetch('/api/chat_thread.php?with=' + win.id + '&since_id=' + win.lastMsgId)
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data.ok || !data.messages.length) return;
+        var msgsEl = win.el.querySelector('.chat-thread-messages');
+        var gotIncoming = false;
+        data.messages.forEach(function (m) {
+          appendMessage(msgsEl, m);
+          if (String(m.sender_id) !== String(window.CHAT_MY_ID)) gotIncoming = true;
+        });
+        win.lastMsgId = data.messages[data.messages.length - 1].id;
+        if (isInitial || gotIncoming) msgsEl.scrollTop = msgsEl.scrollHeight;
+        if (!isInitial && gotIncoming) playNotifySound();
+        if (gotIncoming) loadContacts(); // this contact's messages just got marked read server-side
+      });
+  }
+
+  function sendMessage(win) {
+    var input = win.el.querySelector('.chat-float-input');
+    var msg = input.value.trim();
+    if (!msg) return;
+    input.value = '';
+    fetch('/api/chat_send.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ recipient_id: win.id, message: msg })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.ok) {
+          var msgsEl = win.el.querySelector('.chat-thread-messages');
+          appendMessage(msgsEl, data.message);
+          win.lastMsgId = data.message.id;
+          msgsEl.scrollTop = msgsEl.scrollHeight;
+        }
+      });
   }
 
   bubble.addEventListener('click', function () {
@@ -166,27 +218,6 @@
     if (opening) loadContacts();
   });
   closeBtn.addEventListener('click', function () { panel.style.display = 'none'; });
-  backBtn.addEventListener('click', closeThread);
-
-  sendForm.addEventListener('submit', function (e) {
-    e.preventDefault();
-    var msg = input.value.trim();
-    if (!msg || !activeContactId) return;
-    input.value = '';
-    fetch('/api/chat_send.php', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ recipient_id: activeContactId, message: msg })
-    })
-      .then(function (r) { return r.json(); })
-      .then(function (data) {
-        if (data.ok) {
-          appendMessage(data.message);
-          lastMsgId = data.message.id;
-          threadMsgs.scrollTop = threadMsgs.scrollHeight;
-        }
-      });
-  });
 
   loadContacts();
   setInterval(loadContacts, 15000);
