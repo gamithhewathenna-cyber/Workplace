@@ -215,9 +215,13 @@
   bubble.addEventListener('click', function () {
     var opening = panel.style.display === 'none';
     panel.style.display = opening ? 'flex' : 'none';
+    document.body.classList.toggle('chat-panel-open', opening);
     if (opening) loadContacts();
   });
-  closeBtn.addEventListener('click', function () { panel.style.display = 'none'; });
+  closeBtn.addEventListener('click', function () {
+    panel.style.display = 'none';
+    document.body.classList.remove('chat-panel-open');
+  });
 
   loadContacts();
   setInterval(loadContacts, 15000);
