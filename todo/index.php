@@ -159,7 +159,7 @@ $error   = get_flash('error');
         <p class="page-sub" id="live-clock"><?= date('l, d F Y') ?></p>
       </div>
       <div class="header-actions">
-        <?php if (is_manager()): ?>
+        <?php if (can_assign_tasks()): ?>
           <a href="tasks.php" class="btn btn-primary"><i class="fa fa-plus"></i> Assign Task</a>
         <?php endif; ?>
         <a href="report.php" class="btn btn-outline">

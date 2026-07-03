@@ -54,6 +54,12 @@ function is_manager(): bool {
     return isset($_SESSION['role']) && in_array($_SESSION['role'], ['manager','admin','hr'], true);
 }
 
+// Managers can always assign tasks; a regular employee can too if the
+// admin has specifically granted them the can_assign_tasks permission.
+function can_assign_tasks(): bool {
+    return is_manager() || !empty($_SESSION['can_assign_tasks']);
+}
+
 function require_login(): void {
     if (!current_employee_id()) {
         header('Location: /login.php');

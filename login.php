@@ -23,9 +23,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Regenerate session ID to prevent fixation
                 session_regenerate_id(true);
 
-                $_SESSION['employee_id'] = $emp['id'];
-                $_SESSION['role']        = $emp['role'];
-                $_SESSION['emp_name']    = $emp['name'];
+                $_SESSION['employee_id']     = $emp['id'];
+                $_SESSION['role']            = $emp['role'];
+                $_SESSION['emp_name']        = $emp['name'];
+                $_SESSION['can_assign_tasks'] = (bool)$emp['can_assign_tasks'];
 
                 $next = filter_var($_GET['next'] ?? '/todo/index.php', FILTER_SANITIZE_URL);
                 if (!$next || strpos($next, '/') !== 0) {

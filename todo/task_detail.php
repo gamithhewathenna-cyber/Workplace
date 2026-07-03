@@ -6,14 +6,16 @@
 require_once __DIR__ . '/../includes/config.php';
 require_login();
 
-$eid     = current_employee_id();
-$is_mgr  = is_manager();
-$isAdmin = ($_SESSION['role'] ?? '') === 'admin';
-$tid     = (int)($_GET['id'] ?? 0);
+$eid        = current_employee_id();
+$is_mgr     = is_manager();
+$can_assign = can_assign_tasks();
+$isAdmin    = ($_SESSION['role'] ?? '') === 'admin';
+$tid        = (int)($_GET['id'] ?? 0);
 
 if (!$tid) { redirect('/todo/tasks.php'); }
 
-// Fetch task — employees can only see their own; managers see all
+// Fetch task — employees can only see their own; managers see all;
+// employees with task-assignment permission also see tasks they delegated.
 $st = db()->prepare("
     SELECT t.*, c.name AS client_name, p.name AS project_name,
            ab.name AS assigned_by_name, at2.name AS assigned_to_name
@@ -22,9 +24,9 @@ $st = db()->prepare("
     LEFT JOIN projects p ON p.id = t.project_id
     LEFT JOIN employees ab ON ab.id = t.assigned_by
     LEFT JOIN employees at2 ON at2.id = t.assigned_to
-    WHERE t.id = ? AND (t.assigned_to = ? OR ? = 1)
+    WHERE t.id = ? AND (t.assigned_to = ? OR ? = 1 OR (t.assigned_by = ? AND ? = 1))
 ");
-$st->execute([$tid, $eid, (int)$is_mgr]);
+$st->execute([$tid, $eid, (int)$is_mgr, $eid, (int)$can_assign]);
 $task = $st->fetch();
 
 if (!$task) { redirect('/todo/tasks.php'); }
@@ -35,8 +37,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $valid = ['not_started','in_progress','waiting_client','under_review','completed','cancelled'];
         $ns = $_POST['status'] ?? '';
         if (in_array($ns, $valid, true)) {
-            db()->prepare("UPDATE tasks SET status=? WHERE id=? AND (assigned_to=? OR ?=1)")
-               ->execute([$ns, $tid, $eid, (int)$is_mgr]);
+            db()->prepare("UPDATE tasks SET status=? WHERE id=? AND (assigned_to=? OR ?=1 OR (assigned_by=? AND ?=1))")
+               ->execute([$ns, $tid, $eid, (int)$is_mgr, $eid, (int)$can_assign]);
             flash('success', 'Status updated.');
         }
         redirect("task_detail.php?id=$tid");

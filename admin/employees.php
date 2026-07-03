@@ -25,6 +25,7 @@ if ($action === 'add') {
     $role  = $_POST['role']   ?? 'employee';
     $jdate = $_POST['join_date'] ?? '';
     $pw    = $_POST['password'] ?? '';
+    $can_assign = isset($_POST['can_assign_tasks']) ? 1 : 0;
 
     $valid_roles = ['employee','manager','hr','admin'];
     if (!$name || !$email) {
@@ -44,9 +45,9 @@ if ($action === 'add') {
             }
             $hash = password_hash($pw, PASSWORD_DEFAULT);
             db()->prepare(
-                "INSERT INTO employees (name,email,password,position,phone,department,join_date,role,status)
-                 VALUES (?,?,?,?,?,?,?,?,'active')"
-            )->execute([$name, $email, $hash, $pos, $phone, $dept, $jdate ?: null, $role]);
+                "INSERT INTO employees (name,email,password,position,phone,department,join_date,role,can_assign_tasks,status)
+                 VALUES (?,?,?,?,?,?,?,?,?,'active')"
+            )->execute([$name, $email, $hash, $pos, $phone, $dept, $jdate ?: null, $role, $can_assign]);
             $new_emp_pw = $pw;
 
             $login_url = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http')
@@ -80,6 +81,7 @@ if ($action === 'edit') {
     $role  = $_POST['role'] ?? 'employee';
     $jdate = $_POST['join_date'] ?? '';
     $status = $_POST['status'] ?? 'active';
+    $can_assign = isset($_POST['can_assign_tasks']) ? 1 : 0;
 
     $valid_roles   = ['employee','manager','hr','admin'];
     $valid_statuses = ['active','inactive'];
@@ -90,8 +92,8 @@ if ($action === 'edit') {
         $error = 'Invalid role or status.';
     } else {
         db()->prepare(
-            "UPDATE employees SET name=?,position=?,phone=?,department=?,join_date=?,role=?,status=? WHERE id=?"
-        )->execute([$name, $pos, $phone, $dept, $jdate ?: null, $role, $status, $eid]);
+            "UPDATE employees SET name=?,position=?,phone=?,department=?,join_date=?,role=?,can_assign_tasks=?,status=? WHERE id=?"
+        )->execute([$name, $pos, $phone, $dept, $jdate ?: null, $role, $can_assign, $status, $eid]);
         $success = 'Employee updated.';
     }
 }
@@ -414,7 +416,12 @@ if (isset($_GET['edit'])) {
               <?php endif; ?>
             </td>
             <td style="font-size:.83rem;color:var(--clr-muted)"><?= h($emp['phone'] ?? '—') ?></td>
-            <td><span class="role-badge role-<?= h($emp['role']) ?>"><?= h($emp['role']) ?></span></td>
+            <td>
+              <span class="role-badge role-<?= h($emp['role']) ?>"><?= h($emp['role']) ?></span>
+              <?php if ($emp['role'] === 'employee' && !empty($emp['can_assign_tasks'])): ?>
+                <i class="fa fa-user-check" style="color:var(--clr-primary);margin-left:.3rem" title="Can assign tasks to teammates"></i>
+              <?php endif; ?>
+            </td>
             <td style="font-size:.78rem;color:var(--clr-muted)">
               <?= !empty($emp['join_date']) ? date('d M Y', strtotime($emp['join_date'])) : '—' ?>
             </td>
@@ -562,6 +569,13 @@ if (isset($_GET['edit'])) {
           <label>Initial Password <small style="color:var(--clr-muted)">(leave blank to auto-generate)</small></label>
           <input type="text" name="password" class="input" placeholder="Auto-generate if empty">
         </div>
+        <div class="form-group span-2">
+          <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;font-weight:400">
+            <input type="checkbox" name="can_assign_tasks" value="1" style="width:auto">
+            Allow this employee to assign tasks to teammates
+          </label>
+          <small style="color:var(--clr-muted)">Grants task-assignment access without changing their role (managers/HR/admin always have this).</small>
+        </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-ghost" onclick="closeModal('add-modal')">Cancel</button>
@@ -622,6 +636,13 @@ if (isset($_GET['edit'])) {
             <option value="inactive">Inactive</option>
           </select>
         </div>
+        <div class="form-group span-2">
+          <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;font-weight:400">
+            <input type="checkbox" name="can_assign_tasks" id="edit-can-assign" value="1" style="width:auto">
+            Allow this employee to assign tasks to teammates
+          </label>
+          <small style="color:var(--clr-muted)">Grants task-assignment access without changing their role (managers/HR/admin always have this).</small>
+        </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-ghost" onclick="closeModal('edit-modal')">Cancel</button>
@@ -652,6 +673,7 @@ function openEditModal(emp) {
   document.getElementById('edit-jdate').value    = emp.join_date || '';
   document.getElementById('edit-role').value     = emp.role;
   document.getElementById('edit-status').value   = emp.status;
+  document.getElementById('edit-can-assign').checked = String(emp.can_assign_tasks) === '1';
   openModal('edit-modal');
 }
 

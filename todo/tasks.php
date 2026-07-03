@@ -6,16 +6,17 @@
 require_once __DIR__ . '/../includes/config.php';
 require_login();
 
-$eid       = current_employee_id();
-$is_mgr    = is_manager();
-$isAdmin   = ($_SESSION['role'] ?? '') === 'admin';
-$today     = date('Y-m-d');
+$eid        = current_employee_id();
+$is_mgr     = is_manager();
+$can_assign = can_assign_tasks();
+$isAdmin    = ($_SESSION['role'] ?? '') === 'admin';
+$today      = date('Y-m-d');
 
 // ── Handle POST ────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
-    if ($action === 'create_task' && $is_mgr) {
+    if ($action === 'create_task' && $can_assign) {
         $client_id = $_POST['client_id'] ?: null;
         $new_client_name = trim($_POST['new_client_name'] ?? '');
         if ($new_client_name) {
@@ -110,8 +111,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $status = $_POST['status'];
         $valid  = ['not_started','in_progress','waiting_client','under_review','completed','cancelled'];
         if (in_array($status, $valid, true)) {
-            db()->prepare("UPDATE tasks SET status=? WHERE id=? AND (assigned_to=? OR ? = 1)")
-               ->execute([$status, $tid, $eid, (int)$is_mgr]);
+            db()->prepare("UPDATE tasks SET status=? WHERE id=? AND (assigned_to=? OR ?=1 OR (assigned_by=? AND ?=1))")
+               ->execute([$status, $tid, $eid, (int)$is_mgr, $eid, (int)$can_assign]);
             flash('success', 'Task status updated.');
         }
         redirect('tasks.php');
@@ -135,7 +136,13 @@ $page            = max(1, (int)($_GET['page'] ?? 1));
 $per_page        = 20;
 $offset          = ($page - 1) * $per_page;
 
-$where  = $is_mgr ? '1=1' : "t.assigned_to = $eid";
+if ($is_mgr) {
+    $where = '1=1';
+} elseif ($can_assign) {
+    $where = "(t.assigned_to = $eid OR t.assigned_by = $eid)";
+} else {
+    $where = "t.assigned_to = $eid";
+}
 $params = [];
 
 if ($status_filter)   { $where .= ' AND t.status=?';           $params[] = $status_filter; }
@@ -161,7 +168,7 @@ $stmt->execute($params);
 $tasks = $stmt->fetchAll();
 
 // For create form
-$employees = $is_mgr ? db()->query("SELECT id,name FROM employees WHERE status='active' ORDER BY name")->fetchAll() : [];
+$employees = $can_assign ? db()->query("SELECT id,name FROM employees WHERE status='active' ORDER BY name")->fetchAll() : [];
 $clients   = db()->query("SELECT id,name FROM clients WHERE is_active=1 ORDER BY name")->fetchAll();
 $projects  = db()->query("SELECT id,name FROM projects WHERE status='active' ORDER BY name")->fetchAll();
 
@@ -184,7 +191,7 @@ $error   = get_flash('error');
   <main class="portal-main">
     <div class="page-header">
       <h1 class="page-title"><i class="fa fa-clipboard-list"></i> Tasks</h1>
-      <?php if ($is_mgr): ?>
+      <?php if ($can_assign): ?>
         <button class="btn btn-primary" onclick="openModal('create-task-modal')"><i class="fa fa-plus"></i> Assign Task</button>
       <?php endif; ?>
     </div>
@@ -222,7 +229,7 @@ $error   = get_flash('error');
           <thead>
             <tr>
               <th>Title</th><th>Client</th>
-              <?php if ($is_mgr): ?><th>Assigned To</th><?php endif; ?>
+              <?php if ($can_assign): ?><th>Assigned To</th><?php endif; ?>
               <th>Priority</th><th>Due Date</th><th>Status</th><th>Actions</th>
             </tr>
           </thead>
@@ -231,7 +238,7 @@ $error   = get_flash('error');
             <tr class="<?= $t['due_date'] && $t['due_date'] < $today && !in_array($t['status'],['completed','cancelled']) ? 'overdue-row' : '' ?>">
               <td><a href="task_detail.php?id=<?= $t['id'] ?>"><?= h($t['title']) ?></a></td>
               <td><?= h($t['client_name'] ?? '—') ?></td>
-              <?php if ($is_mgr): ?><td><?= h($t['assignee_name'] ?? '—') ?></td><?php endif; ?>
+              <?php if ($can_assign): ?><td><?= h($t['assignee_name'] ?? '—') ?></td><?php endif; ?>
               <td><span class="badge priority-<?= $t['priority'] ?>"><?= ucfirst($t['priority']) ?></span></td>
               <td class="<?= $t['due_date'] && $t['due_date'] < $today ? 'text-danger' : '' ?>">
                 <?= $t['due_date'] ? date('d M Y', strtotime($t['due_date'])) : '—' ?>
@@ -260,7 +267,7 @@ $error   = get_flash('error');
             </tr>
             <?php endforeach; ?>
             <?php if (!$tasks): ?>
-              <tr><td colspan="<?= $is_mgr ? 7 : 6 ?>" class="text-center text-muted">No tasks found.</td></tr>
+              <tr><td colspan="<?= $can_assign ? 7 : 6 ?>" class="text-center text-muted">No tasks found.</td></tr>
             <?php endif; ?>
           </tbody>
         </table>
@@ -279,7 +286,7 @@ $error   = get_flash('error');
 </div>
 
 <!-- Create Task Modal -->
-<?php if ($is_mgr): ?>
+<?php if ($can_assign): ?>
 <div id="create-task-modal" class="modal-overlay" style="display:none">
   <div class="modal">
     <div class="modal-header">
