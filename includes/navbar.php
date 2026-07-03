@@ -71,3 +71,30 @@ if (!$emp_name && $eid) {
   #menu-toggle { display: grid !important; }
 }
 </style>
+
+<!-- ── Team Chat Widget ────────────────────────────────────── -->
+<button id="chat-bubble" class="chat-bubble" aria-label="Team Chat">
+  <i class="fa fa-comments"></i>
+  <span id="chat-badge" class="chat-badge" style="display:none">0</span>
+</button>
+
+<div id="chat-panel" class="chat-panel" style="display:none">
+  <div class="chat-panel-header">
+    <button id="chat-back" class="chat-back-btn" style="display:none" aria-label="Back"><i class="fa fa-arrow-left"></i></button>
+    <span id="chat-panel-title">Team Chat</span>
+    <button id="chat-close" class="chat-close-btn" aria-label="Close"><i class="fa fa-xmark"></i></button>
+  </div>
+
+  <div id="chat-contacts-list" class="chat-contacts-list"></div>
+
+  <div id="chat-thread-view" class="chat-thread-view" style="display:none">
+    <div id="chat-thread-messages" class="chat-thread-messages"></div>
+    <form id="chat-send-form" class="chat-send-form">
+      <input type="text" id="chat-input" placeholder="Type a message…" autocomplete="off" maxlength="2000">
+      <button type="submit" aria-label="Send"><i class="fa fa-paper-plane"></i></button>
+    </form>
+  </div>
+</div>
+
+<script>window.CHAT_MY_ID = <?= (int)$eid ?>;</script>
+<script src="/assets/js/chat.js"></script>
