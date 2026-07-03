@@ -19,6 +19,29 @@
   var lastMsgId = 0;
   var threadPollTimer = null;
   var contacts = [];
+  var lastTotalUnread = 0;
+  var contactsLoadedOnce = false;
+  var audioCtx = null;
+
+  function playNotifySound() {
+    try {
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      var now = audioCtx.currentTime;
+      [880, 1175].forEach(function (freq, i) {
+        var o = audioCtx.createOscillator();
+        var g = audioCtx.createGain();
+        o.type = 'sine';
+        o.frequency.value = freq;
+        var start = now + i * 0.11;
+        g.gain.setValueAtTime(0.0001, start);
+        g.gain.exponentialRampToValueAtTime(0.18, start + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, start + 0.3);
+        o.connect(g); g.connect(audioCtx.destination);
+        o.start(start);
+        o.stop(start + 0.32);
+      });
+    } catch (e) { /* audio unavailable/blocked — ignore */ }
+  }
 
   function escHtml(s) {
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -56,6 +79,9 @@
         if (!activeContactId) renderContacts();
         var total = contacts.reduce(function (sum, c) { return sum + parseInt(c.unread_count, 10); }, 0);
         updateBadge(total);
+        if (contactsLoadedOnce && total > lastTotalUnread) playNotifySound();
+        contactsLoadedOnce = true;
+        lastTotalUnread = total;
       });
   }
 
@@ -109,15 +135,20 @@
     loadContacts();
   }
 
-  function loadThread(scrollDown) {
+  function loadThread(isInitialOpen) {
     if (!activeContactId) return;
     fetch('/api/chat_thread.php?with=' + activeContactId + '&since_id=' + lastMsgId)
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (!data.ok || !data.messages.length) return;
-        data.messages.forEach(function (m) { appendMessage(m); });
+        var gotIncoming = false;
+        data.messages.forEach(function (m) {
+          appendMessage(m);
+          if (String(m.sender_id) !== String(window.CHAT_MY_ID)) gotIncoming = true;
+        });
         lastMsgId = data.messages[data.messages.length - 1].id;
-        if (scrollDown !== false) threadMsgs.scrollTop = threadMsgs.scrollHeight;
+        if (isInitialOpen !== false || gotIncoming) threadMsgs.scrollTop = threadMsgs.scrollHeight;
+        if (!isInitialOpen && gotIncoming) playNotifySound();
       });
   }
 
