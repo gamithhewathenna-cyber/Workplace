@@ -813,8 +813,8 @@ body { font-family: var(--font); background: var(--clr-bg); color: var(--clr-tex
    instead of underneath it while the panel is open. */
 body.chat-panel-open .chat-windows-container { right: 23.5rem; }
 .chat-float-window {
-  width: 280px;
-  height: 380px;
+  width: 340px;
+  height: 480px;
   max-height: calc(100vh - 2rem);
   background: var(--clr-surface);
   border-radius: var(--radius) var(--radius) 0 0;
