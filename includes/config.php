@@ -20,7 +20,13 @@ define('LOGIN_MINUTE', 0);
 define('UPLOAD_DIR',        __DIR__ . '/../uploads/');
 define('UPLOAD_CERT_DIR',   __DIR__ . '/../uploads/certs/');
 define('UPLOAD_TASK_DIR',   __DIR__ . '/../uploads/tasks/');
+define('UPLOAD_CHAT_DIR',   __DIR__ . '/../uploads/chat/');
 define('UPLOAD_URL',        '/uploads/');
+
+// ── Chat retention rules ───────────────────────────────────
+define('CHAT_IMAGE_MAX_BYTES',   2 * 1024 * 1024); // 2MB
+define('CHAT_IMAGE_RETAIN_DAYS', 3);
+define('CHAT_HISTORY_RETAIN_DAYS', 60); // ~2 months
 
 // ── Timezone — Sri Lanka Standard Time (UTC+5:30) ─────────
 date_default_timezone_set('Asia/Colombo');
@@ -202,6 +208,49 @@ function set_setting(string $key, string $value): void {
                    VALUES (?,?)
                    ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)")
        ->execute([$key, $value]);
+}
+
+// ── Chat retention cleanup ──────────────────────────────────
+// Deletes expired chat image files (CHAT_IMAGE_RETAIN_DAYS) and purges chat
+// history older than CHAT_HISTORY_RETAIN_DAYS. Runs at most once every few
+// hours, triggered opportunistically from chat API calls — no cron needed,
+// though a real cron hitting cron/chat_cleanup.php is more reliable and
+// recommended if the portal ever sits idle for long stretches.
+function chat_maybe_cleanup(): void {
+    $last = (int)get_setting('chat_last_cleanup', '0');
+    if (time() - $last < 6 * 3600) return;
+    set_setting('chat_last_cleanup', (string)time());
+    chat_run_cleanup();
+}
+
+function chat_run_cleanup(): void {
+    // Expire attachments past their retention window — delete the file,
+    // keep the message row so history stays intact.
+    $expired = db()->query("
+        SELECT id, attachment_path FROM chat_messages
+        WHERE attachment_path IS NOT NULL AND attachment_expires_at < NOW()
+    ")->fetchAll();
+    foreach ($expired as $row) {
+        $full = UPLOAD_CHAT_DIR . basename($row['attachment_path']);
+        if (is_file($full)) @unlink($full);
+    }
+    if ($expired) {
+        db()->exec("UPDATE chat_messages SET attachment_path=NULL, attachment_expires_at=NULL
+                     WHERE attachment_path IS NOT NULL AND attachment_expires_at < NOW()");
+    }
+
+    // Purge chat history past the retention window (and any attachment
+    // files still attached to those old messages).
+    $oldFiles = db()->query("
+        SELECT attachment_path FROM chat_messages
+        WHERE created_at < DATE_SUB(NOW(), INTERVAL " . CHAT_HISTORY_RETAIN_DAYS . " DAY)
+          AND attachment_path IS NOT NULL
+    ")->fetchAll(PDO::FETCH_COLUMN);
+    foreach ($oldFiles as $path) {
+        $full = UPLOAD_CHAT_DIR . basename($path);
+        if (is_file($full)) @unlink($full);
+    }
+    db()->exec("DELETE FROM chat_messages WHERE created_at < DATE_SUB(NOW(), INTERVAL " . CHAT_HISTORY_RETAIN_DAYS . " DAY)");
 }
 
 // Run login tracking on every page load if logged in

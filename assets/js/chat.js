@@ -14,6 +14,7 @@
   var contactsLoadedOnce = false;
   var audioCtx = null;
   var openWindows = []; // { id, name, el, lastMsgId, pollTimer }
+  var MAX_IMAGE_BYTES = 2 * 1024 * 1024; // 2MB — must match CHAT_IMAGE_MAX_BYTES in includes/config.php
 
   function maxWindows() {
     return window.innerWidth < 480 ? 1 : 3;
@@ -116,8 +117,19 @@
   function appendMessage(msgsEl, m) {
     var mine = String(m.sender_id) === String(window.CHAT_MY_ID);
     var el = document.createElement('div');
-    el.className = 'chat-msg ' + (mine ? 'chat-msg-mine' : 'chat-msg-theirs');
-    el.innerHTML = escHtml(m.message).replace(/\n/g, '<br>') + '<span class="chat-msg-time">' + fmtTime(m.created_at) + '</span>';
+    el.className = 'chat-msg ' + (mine ? 'chat-msg-mine' : 'chat-msg-theirs') + (m.attachment_path ? ' chat-msg-image' : '');
+    var html = '';
+    if (m.attachment_path) {
+      var url = '/uploads/' + m.attachment_path;
+      html += '<a href="' + escHtml(url) + '" target="_blank" rel="noopener"><img src="' + escHtml(url) + '" alt="Shared image" loading="lazy"></a>';
+    }
+    if (m.message) {
+      html += '<div class="chat-msg-text">' + escHtml(m.message).replace(/\n/g, '<br>') + '</div>';
+    } else if (!m.attachment_path) {
+      html += '<div class="chat-msg-text" style="opacity:.6;font-style:italic">Photo (auto-deleted after 3 days)</div>';
+    }
+    html += '<span class="chat-msg-time">' + fmtTime(m.created_at) + '</span>';
+    el.innerHTML = html;
     msgsEl.appendChild(el);
   }
 
@@ -147,6 +159,8 @@
       '<div class="chat-thread-view">' +
         '<div class="chat-thread-messages"></div>' +
         '<form class="chat-send-form">' +
+          '<button type="button" class="chat-attach-btn" aria-label="Attach image" title="Attach image (max 2MB)"><i class="fa fa-image"></i></button>' +
+          '<input type="file" class="chat-file-input" accept="image/png,image/jpeg,image/gif,image/webp" style="display:none">' +
           '<input type="text" class="chat-float-input" placeholder="Type a message…" autocomplete="off" maxlength="2000">' +
           '<button type="submit" aria-label="Send"><i class="fa fa-paper-plane"></i></button>' +
         '</form>' +
@@ -185,6 +199,14 @@
     el.querySelector('.chat-send-form').addEventListener('submit', function (e) {
       e.preventDefault();
       sendMessage(win);
+    });
+
+    var fileInput = el.querySelector('.chat-file-input');
+    el.querySelector('.chat-attach-btn').addEventListener('click', function () { fileInput.click(); });
+    fileInput.addEventListener('change', function () {
+      var file = fileInput.files[0];
+      fileInput.value = '';
+      if (file) uploadImage(win, file);
     });
 
     loadWindowThread(win, true);
@@ -246,6 +268,33 @@
           msgsEl.scrollTop = msgsEl.scrollHeight;
         }
       });
+  }
+
+  function uploadImage(win, file) {
+    if (!/^image\//.test(file.type)) {
+      alert('Please choose an image file.');
+      return;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      alert('That image is larger than 2MB. Please choose a smaller one.');
+      return;
+    }
+    var fd = new FormData();
+    fd.append('recipient_id', win.id);
+    fd.append('image', file);
+    fetch('/api/chat_upload.php', { method: 'POST', body: fd })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.ok) {
+          var msgsEl = win.el.querySelector('.chat-thread-messages');
+          appendMessage(msgsEl, data.message);
+          win.lastMsgId = data.message.id;
+          msgsEl.scrollTop = msgsEl.scrollHeight;
+        } else {
+          alert(data.error || 'Could not send image.');
+        }
+      })
+      .catch(function () { alert('Could not send image.'); });
   }
 
   bubble.addEventListener('click', function () {

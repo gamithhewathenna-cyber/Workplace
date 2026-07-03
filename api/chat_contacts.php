@@ -3,13 +3,16 @@
 require_once __DIR__ . '/../includes/config.php';
 require_login();
 
+chat_maybe_cleanup();
+
 $eid = current_employee_id();
 
 $st = db()->prepare("
     SELECT e.id, e.name, e.position,
         (SELECT COUNT(*) FROM chat_messages cm
           WHERE cm.sender_id = e.id AND cm.recipient_id = ? AND cm.is_read = 0) AS unread_count,
-        (SELECT cm2.message FROM chat_messages cm2
+        (SELECT CASE WHEN cm2.attachment_path IS NOT NULL AND (cm2.message IS NULL OR cm2.message = '') THEN '📷 Photo' ELSE cm2.message END
+          FROM chat_messages cm2
           WHERE (cm2.sender_id = e.id AND cm2.recipient_id = ?)
              OR (cm2.sender_id = ? AND cm2.recipient_id = e.id)
           ORDER BY cm2.id DESC LIMIT 1) AS last_message,

@@ -766,15 +766,26 @@ body { font-family: var(--font); background: var(--clr-bg); color: var(--clr-tex
 .chat-msg-mine { align-self: flex-end; background: var(--clr-primary); color: #fff; border-bottom-right-radius: 4px; }
 .chat-msg-theirs { align-self: flex-start; background: var(--clr-bg); color: var(--clr-text); border-bottom-left-radius: 4px; }
 .chat-msg-time { display: block; font-size: .62rem; opacity: .7; margin-top: .2rem; }
+.chat-msg-text { margin-top: .3rem; }
+.chat-msg-image { padding: .35rem; }
+.chat-msg-image img {
+  display: block;
+  max-width: 100%;
+  max-height: 220px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.chat-msg-image .chat-msg-text { padding: 0 .35rem; }
 
 .chat-send-form {
   display: flex;
+  align-items: center;
   gap: .5rem;
   padding: .75rem;
   border-top: 1px solid var(--clr-border);
   flex-shrink: 0;
 }
-.chat-send-form input {
+.chat-send-form input[type="text"] {
   flex: 1;
   border: 1px solid var(--clr-border);
   border-radius: 20px;
@@ -785,8 +796,22 @@ body { font-family: var(--font); background: var(--clr-bg); color: var(--clr-tex
   color: var(--clr-text);
   outline: none;
 }
-.chat-send-form input:focus { border-color: var(--clr-primary); }
-.chat-send-form button {
+.chat-send-form input[type="text"]:focus { border-color: var(--clr-primary); }
+.chat-attach-btn {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--clr-border);
+  background: var(--clr-bg);
+  color: var(--clr-muted);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  font-size: .85rem;
+  transition: var(--transition);
+}
+.chat-attach-btn:hover { color: var(--clr-primary); border-color: var(--clr-primary); }
+.chat-send-form button[type="submit"] {
   width: 36px; height: 36px;
   border-radius: 50%;
   border: none;

@@ -18,7 +18,7 @@ db()->prepare("UPDATE chat_messages SET is_read=1 WHERE sender_id=? AND recipien
 
 $since = (int)($_GET['since_id'] ?? 0);
 $sql = "
-    SELECT id, sender_id, recipient_id, message, created_at
+    SELECT id, sender_id, recipient_id, message, attachment_path, created_at
     FROM chat_messages
     WHERE ((sender_id=? AND recipient_id=?) OR (sender_id=? AND recipient_id=?))
 ";
