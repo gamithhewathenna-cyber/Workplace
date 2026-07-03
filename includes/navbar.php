@@ -91,4 +91,4 @@ if (!$emp_name && $eid) {
 <div id="chat-windows-container" class="chat-windows-container"></div>
 
 <script>window.CHAT_MY_ID = <?= (int)$eid ?>;</script>
-<script src="/assets/js/chat.js"></script>
+<script src="/assets/js/chat.js?v=<?= @filemtime(__DIR__ . '/../assets/js/chat.js') ?: time() ?>"></script>
