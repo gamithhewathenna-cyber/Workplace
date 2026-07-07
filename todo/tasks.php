@@ -143,6 +143,7 @@ if ($is_mgr) {
 } else {
     $where = "t.assigned_to = $eid";
 }
+$where .= ' AND t.archived_at IS NULL'; // completed tasks are archived off the board every Monday 4PM
 $params = [];
 
 if ($status_filter)   { $where .= ' AND t.status=?';           $params[] = $status_filter; }

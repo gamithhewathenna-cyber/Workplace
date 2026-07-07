@@ -253,7 +253,27 @@ function chat_run_cleanup(): void {
     db()->exec("DELETE FROM chat_messages WHERE created_at < DATE_SUB(NOW(), INTERVAL " . CHAT_HISTORY_RETAIN_DAYS . " DAY)");
 }
 
+// ── Weekly task archiving ───────────────────────────────────
+// Every Monday at/after 4PM, completed tasks are archived (hidden from the
+// active task list/board) — never deleted, so time logs and attachments
+// stay intact and the task can still be reported on or restored later.
+// Runs at most once per Monday, triggered opportunistically on page load
+// (see call below) — no cron required, though cron/tasks_archive.php is
+// available if you want it to fire reliably even with nobody logged in.
+function tasks_maybe_weekly_archive(): void {
+    $now = new DateTime();
+    if ((int)$now->format('N') !== 1) return;   // 1 = Monday
+    if ((int)$now->format('H') < 16) return;    // before 4:00 PM
+
+    $today = $now->format('Y-m-d');
+    if (get_setting('tasks_last_archive_date', '') === $today) return;
+    set_setting('tasks_last_archive_date', $today);
+
+    db()->exec("UPDATE tasks SET archived_at = NOW() WHERE status = 'completed' AND archived_at IS NULL");
+}
+
 // Run login tracking on every page load if logged in
 if (current_employee_id()) {
     record_login();
+    tasks_maybe_weekly_archive();
 }

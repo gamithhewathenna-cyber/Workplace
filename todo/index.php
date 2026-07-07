@@ -43,11 +43,12 @@ $myTasks->execute([$eid]);
 $openTasks = $myTasks->fetchAll();
 
 // ── All my tasks (including completed), for the progress card ──────
+// Completed tasks drop off this list once archived (every Monday 4PM).
 $myAllTasks = db()->prepare("
     SELECT t.*, c.name AS client_name
     FROM tasks t
     LEFT JOIN clients c ON c.id = t.client_id
-    WHERE t.assigned_to=? AND t.status != 'cancelled'
+    WHERE t.assigned_to=? AND t.status != 'cancelled' AND t.archived_at IS NULL
     ORDER BY FIELD(t.priority,'critical','high','medium','low'), t.due_date ASC
 ");
 $myAllTasks->execute([$eid]);
@@ -108,7 +109,7 @@ $team_task_rows = db()->query("
            c.name AS client_name
     FROM tasks t
     LEFT JOIN clients c ON c.id = t.client_id
-    WHERE t.status != 'cancelled'
+    WHERE t.status != 'cancelled' AND t.archived_at IS NULL
     ORDER BY FIELD(t.priority,'critical','high','medium','low'), t.due_date ASC
 ")->fetchAll();
 foreach ($team_task_rows as $t) {
