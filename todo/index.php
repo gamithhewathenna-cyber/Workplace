@@ -42,6 +42,32 @@ $myTasks = db()->prepare("
 $myTasks->execute([$eid]);
 $openTasks = $myTasks->fetchAll();
 
+// ── All my tasks (including completed), for the progress card ──────
+$myAllTasks = db()->prepare("
+    SELECT t.*, c.name AS client_name
+    FROM tasks t
+    LEFT JOIN clients c ON c.id = t.client_id
+    WHERE t.assigned_to=? AND t.status != 'cancelled'
+    ORDER BY FIELD(t.priority,'critical','high','medium','low'), t.due_date ASC
+");
+$myAllTasks->execute([$eid]);
+$myTasksAll = $myAllTasks->fetchAll();
+$my_task_done  = count(array_filter($myTasksAll, fn($t) => $t['status'] === 'completed'));
+$my_task_total = count($myTasksAll);
+$my_task_pct   = $my_task_total ? round($my_task_done / $my_task_total * 100) : 0;
+
+$me = db()->prepare("SELECT position, role FROM employees WHERE id=?");
+$me->execute([$eid]);
+$me = $me->fetch();
+
+$task_badge_map = [
+    'not_started'    => 'badge-secondary',
+    'in_progress'    => 'badge-info',
+    'waiting_client' => 'badge-warning',
+    'under_review'   => 'badge-warning',
+    'completed'      => 'badge-success',
+];
+
 // ── My projects ────────────────────────────────────────────
 $myProjects = db()->prepare("
     SELECT p.*, c.name AS client_name
@@ -298,36 +324,34 @@ $error   = get_flash('error');
 
     <?php if (($_SESSION['role'] ?? '') !== 'admin'): ?>
     <!-- Assigned Tasks -->
-    <section class="section-card">
+    <section class="section-card checklist-emp-card">
       <div class="section-header">
-        <h2><i class="fa fa-clipboard-list"></i> Assigned Tasks</h2>
-        <a href="tasks.php" class="btn btn-sm">View All</a>
+        <div style="display:flex;align-items:center;gap:.65rem">
+          <div class="emp-avatar-sm"><?= strtoupper(substr($emp_display, 0, 1)) ?></div>
+          <div>
+            <h2 style="font-size:.92rem;margin:0"><?= h($emp_display) ?></h2>
+            <div style="font-size:.72rem;color:var(--clr-muted)"><?= h($me['position'] ?? $me['role'] ?? '') ?></div>
+          </div>
+        </div>
+        <span class="badge <?= !$my_task_total ? 'badge-secondary' : ($my_task_pct === 100 ? 'badge-success' : 'badge-info') ?>"><?= $my_task_done ?>/<?= $my_task_total ?></span>
       </div>
-      <div class="task-cards-grid">
-        <?php foreach ($openTasks as $t): ?>
-        <a href="task_detail.php?id=<?= $t['id'] ?>" class="task-card <?= $t['due_date'] && $t['due_date'] < $today ? 'overdue' : '' ?>">
-          <div class="task-card-title"><?= h($t['title']) ?></div>
-          <div class="task-card-meta">
-            <span><?= h($t['client_name'] ?? 'No Client') ?></span>
-            <span class="badge priority-<?= $t['priority'] ?>"><?= ucfirst($t['priority']) ?></span>
-          </div>
-          <div class="task-card-meta">
-            <span class="badge status-<?= str_replace('_','-',$t['status']) ?>">
-              <?= ucwords(str_replace('_',' ',$t['status'])) ?>
-            </span>
-            <span class="<?= $t['due_date'] && $t['due_date'] < $today ? 'text-danger' : '' ?>">
-              <?php if ($t['due_date']): ?>
-                <i class="fa fa-calendar-alt"></i> <?= date('d M Y', strtotime($t['due_date'])) ?>
-              <?php else: ?>
-                —
-              <?php endif; ?>
-            </span>
-          </div>
-        </a>
-        <?php endforeach; ?>
-        <?php if (!$openTasks): ?>
-          <p class="empty-state">No open tasks 🎉</p>
-        <?php endif; ?>
+      <?php if ($my_task_total): ?>
+      <div class="progress-bar-wrap" style="margin-bottom:.85rem">
+        <div class="progress-bar <?= $my_task_pct === 100 ? 'bar-green' : '' ?>" style="width:<?= $my_task_pct ?>%"></div>
+      </div>
+      <?php endif; ?>
+      <div>
+        <?php if (!$myTasksAll): ?>
+          <p class="empty-state" style="padding:.5rem 0">No tasks assigned 🎉</p>
+        <?php else: foreach ($myTasksAll as $t): ?>
+          <a href="task_detail.php?id=<?= $t['id'] ?>" class="chk-item-row chk-item-link">
+            <span class="chk-title" style="<?= $t['status'] === 'completed' ? 'text-decoration:line-through;color:var(--clr-muted)' : '' ?>"><?= h($t['title']) ?></span>
+            <span class="badge <?= $task_badge_map[$t['status']] ?? 'badge-secondary' ?>" style="font-size:.65rem"><?= ucwords(str_replace('_',' ',$t['status'])) ?></span>
+          </a>
+        <?php endforeach; endif; ?>
+      </div>
+      <div style="text-align:right;margin-top:.75rem">
+        <a href="tasks.php" class="btn btn-sm">View All</a>
       </div>
     </section>
     <?php endif; ?>
@@ -383,15 +407,7 @@ $error   = get_flash('error');
     <!-- Team's Assigned Tasks -->
     <div class="section-label"><i class="fa fa-clipboard-list" style="margin-right:.4rem"></i>Team's Assigned Tasks</div>
     <div class="checklist-cards-grid">
-      <?php
-      $task_badge_map = [
-          'not_started'    => 'badge-secondary',
-          'in_progress'    => 'badge-info',
-          'waiting_client' => 'badge-warning',
-          'under_review'   => 'badge-warning',
-          'completed'      => 'badge-success',
-      ];
-      foreach ($team_employees as $te):
+      <?php foreach ($team_employees as $te):
           $te_tasks = $team_task_by_emp[$te['id']] ?? [];
           $te_tdone  = $team_task_counts[$te['id']]['done']  ?? 0;
           $te_ttotal = $team_task_counts[$te['id']]['total'] ?? 0;
