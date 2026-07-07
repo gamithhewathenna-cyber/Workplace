@@ -328,6 +328,52 @@ $error   = get_flash('error');
     </div>
     <?php endif; ?>
 
+    <!-- Team's Assigned Tasks — everyone can view (read-only); editing a
+         task still requires task_detail.php's own permission check -->
+    <div class="section-label"><i class="fa fa-clipboard-list" style="margin-right:.4rem"></i>Team's Assigned Tasks</div>
+    <div class="checklist-cards-grid">
+      <?php foreach ($team_employees as $te):
+          $te_tasks = $team_task_by_emp[$te['id']] ?? [];
+          $te_tdone  = $team_task_counts[$te['id']]['done']  ?? 0;
+          $te_ttotal = $team_task_counts[$te['id']]['total'] ?? 0;
+          $te_tpct   = $te_ttotal ? round($te_tdone / $te_ttotal * 100) : 0;
+      ?>
+      <div class="section-card checklist-emp-card">
+        <div class="section-header">
+          <div style="display:flex;align-items:center;gap:.65rem">
+            <div class="emp-avatar-sm"><?= strtoupper(substr($te['name'], 0, 1)) ?></div>
+            <div>
+              <h2 style="font-size:.92rem;margin:0"><?= h($te['name']) ?></h2>
+              <div style="font-size:.72rem;color:var(--clr-muted)"><?= h($te['position'] ?? $te['role']) ?></div>
+            </div>
+          </div>
+          <span class="badge <?= !$te_ttotal ? 'badge-secondary' : ($te_tpct === 100 ? 'badge-success' : 'badge-info') ?>"><?= $te_tdone ?>/<?= $te_ttotal ?></span>
+        </div>
+        <?php if ($te_ttotal): ?>
+        <div class="progress-bar-wrap" style="margin-bottom:.85rem">
+          <div class="progress-bar <?= $te_tpct === 100 ? 'bar-green' : '' ?>" style="width:<?= $te_tpct ?>%"></div>
+        </div>
+        <?php endif; ?>
+        <div>
+          <?php if (!$te_tasks): ?>
+            <p class="empty-state" style="padding:.5rem 0">No tasks assigned.</p>
+          <?php else: foreach ($te_tasks as $t):
+              $canOpen = $is_mgr || (int)$t['assigned_to'] === $eid || ($can_assign && (int)$t['assigned_by'] === $eid);
+              $tag = $canOpen ? 'a' : 'div';
+          ?>
+            <<?= $tag ?> <?= $canOpen ? 'href="/todo/task_detail.php?id=' . $t['id'] . '"' : '' ?> class="chk-item-row <?= $canOpen ? 'chk-item-link' : '' ?>">
+              <span class="chk-title" style="<?= $t['status'] === 'completed' ? 'text-decoration:line-through;color:var(--clr-muted)' : '' ?>"><?= h($t['title']) ?></span>
+              <span class="badge <?= $task_badge_map[$t['status']] ?? 'badge-secondary' ?>" style="font-size:.65rem"><?= ucwords(str_replace('_',' ',$t['status'])) ?></span>
+            </<?= $tag ?>>
+          <?php endforeach; endif; ?>
+        </div>
+      </div>
+      <?php endforeach; ?>
+      <?php if (!$team_employees): ?>
+        <p class="empty-state">No active employees.</p>
+      <?php endif; ?>
+    </div>
+
     <?php if (($_SESSION['role'] ?? '') !== 'admin'): ?>
     <!-- Active Projects -->
     <section class="section-card">
@@ -436,51 +482,6 @@ $error   = get_flash('error');
     </div>
     <?php endif; ?>
 
-    <!-- Team's Assigned Tasks — everyone can view (read-only); editing a
-         task still requires task_detail.php's own permission check -->
-    <div class="section-label"><i class="fa fa-clipboard-list" style="margin-right:.4rem"></i>Team's Assigned Tasks</div>
-    <div class="checklist-cards-grid">
-      <?php foreach ($team_employees as $te):
-          $te_tasks = $team_task_by_emp[$te['id']] ?? [];
-          $te_tdone  = $team_task_counts[$te['id']]['done']  ?? 0;
-          $te_ttotal = $team_task_counts[$te['id']]['total'] ?? 0;
-          $te_tpct   = $te_ttotal ? round($te_tdone / $te_ttotal * 100) : 0;
-      ?>
-      <div class="section-card checklist-emp-card">
-        <div class="section-header">
-          <div style="display:flex;align-items:center;gap:.65rem">
-            <div class="emp-avatar-sm"><?= strtoupper(substr($te['name'], 0, 1)) ?></div>
-            <div>
-              <h2 style="font-size:.92rem;margin:0"><?= h($te['name']) ?></h2>
-              <div style="font-size:.72rem;color:var(--clr-muted)"><?= h($te['position'] ?? $te['role']) ?></div>
-            </div>
-          </div>
-          <span class="badge <?= !$te_ttotal ? 'badge-secondary' : ($te_tpct === 100 ? 'badge-success' : 'badge-info') ?>"><?= $te_tdone ?>/<?= $te_ttotal ?></span>
-        </div>
-        <?php if ($te_ttotal): ?>
-        <div class="progress-bar-wrap" style="margin-bottom:.85rem">
-          <div class="progress-bar <?= $te_tpct === 100 ? 'bar-green' : '' ?>" style="width:<?= $te_tpct ?>%"></div>
-        </div>
-        <?php endif; ?>
-        <div>
-          <?php if (!$te_tasks): ?>
-            <p class="empty-state" style="padding:.5rem 0">No tasks assigned.</p>
-          <?php else: foreach ($te_tasks as $t):
-              $canOpen = $is_mgr || (int)$t['assigned_to'] === $eid || ($can_assign && (int)$t['assigned_by'] === $eid);
-              $tag = $canOpen ? 'a' : 'div';
-          ?>
-            <<?= $tag ?> <?= $canOpen ? 'href="/todo/task_detail.php?id=' . $t['id'] . '"' : '' ?> class="chk-item-row <?= $canOpen ? 'chk-item-link' : '' ?>">
-              <span class="chk-title" style="<?= $t['status'] === 'completed' ? 'text-decoration:line-through;color:var(--clr-muted)' : '' ?>"><?= h($t['title']) ?></span>
-              <span class="badge <?= $task_badge_map[$t['status']] ?? 'badge-secondary' ?>" style="font-size:.65rem"><?= ucwords(str_replace('_',' ',$t['status'])) ?></span>
-            </<?= $tag ?>>
-          <?php endforeach; endif; ?>
-        </div>
-      </div>
-      <?php endforeach; ?>
-      <?php if (!$team_employees): ?>
-        <p class="empty-state">No active employees.</p>
-      <?php endif; ?>
-    </div>
   </main>
 </div>
 
