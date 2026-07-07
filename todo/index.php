@@ -86,21 +86,39 @@ $notifs = db()->prepare("SELECT * FROM notifications WHERE user_id=? AND is_read
 $notifs->execute([$eid]);
 $notifications = $notifs->fetchAll();
 
-// ── Team's daily checklist, one card per employee (managers only) ──
-$is_mgr = is_manager();
+// ── Team's daily checklist (managers only) + Team's Assigned Tasks
+// (everyone can view, read-only — edits still go through task_detail.php's
+// own permission checks) ────────────────────────────────────────────
+$is_mgr     = is_manager();
+$can_assign = can_assign_tasks();
 $team_checklist_by_emp = [];
 $team_checklist_counts = [];
 $team_task_by_emp      = [];
 $team_task_counts      = [];
-$team_employees        = [];
-if ($is_mgr) {
-    $team_employees = db()->query("
-        SELECT id, name, position, role
-        FROM employees
-        WHERE status = 'active'
-        ORDER BY name ASC
-    ")->fetchAll();
 
+$team_employees = db()->query("
+    SELECT id, name, position, role
+    FROM employees
+    WHERE status = 'active'
+    ORDER BY name ASC
+")->fetchAll();
+
+$team_task_rows = db()->query("
+    SELECT t.id, t.title, t.status, t.priority, t.due_date, t.assigned_to, t.assigned_by,
+           c.name AS client_name
+    FROM tasks t
+    LEFT JOIN clients c ON c.id = t.client_id
+    WHERE t.status != 'cancelled'
+    ORDER BY FIELD(t.priority,'critical','high','medium','low'), t.due_date ASC
+")->fetchAll();
+foreach ($team_task_rows as $t) {
+    $rEid = (int)$t['assigned_to'];
+    $team_task_by_emp[$rEid][] = $t;
+    $team_task_counts[$rEid]['total'] = ($team_task_counts[$rEid]['total'] ?? 0) + 1;
+    $team_task_counts[$rEid]['done']  = ($team_task_counts[$rEid]['done']  ?? 0) + ($t['status'] === 'completed' ? 1 : 0);
+}
+
+if ($is_mgr) {
     // Make sure today's checklist exists for every team member, not just
     // whoever has already logged in and viewed their own dashboard today.
     foreach ($team_employees as $te) {
@@ -120,21 +138,6 @@ if ($is_mgr) {
         $team_checklist_by_emp[$rEid][] = ['title' => $r['title'], 'is_completed' => (bool)$r['is_completed']];
         $team_checklist_counts[$rEid]['total'] = ($team_checklist_counts[$rEid]['total'] ?? 0) + 1;
         $team_checklist_counts[$rEid]['done']  = ($team_checklist_counts[$rEid]['done']  ?? 0) + ($r['is_completed'] ? 1 : 0);
-    }
-
-    $team_task_rows = db()->query("
-        SELECT t.id, t.title, t.status, t.priority, t.due_date, t.assigned_to,
-               c.name AS client_name
-        FROM tasks t
-        LEFT JOIN clients c ON c.id = t.client_id
-        WHERE t.status != 'cancelled'
-        ORDER BY FIELD(t.priority,'critical','high','medium','low'), t.due_date ASC
-    ")->fetchAll();
-    foreach ($team_task_rows as $t) {
-        $rEid = (int)$t['assigned_to'];
-        $team_task_by_emp[$rEid][] = $t;
-        $team_task_counts[$rEid]['total'] = ($team_task_counts[$rEid]['total'] ?? 0) + 1;
-        $team_task_counts[$rEid]['done']  = ($team_task_counts[$rEid]['done']  ?? 0) + ($t['status'] === 'completed' ? 1 : 0);
     }
 }
 
@@ -403,8 +406,10 @@ $error   = get_flash('error');
         <p class="empty-state">No active employees.</p>
       <?php endif; ?>
     </div>
+    <?php endif; ?>
 
-    <!-- Team's Assigned Tasks -->
+    <!-- Team's Assigned Tasks — everyone can view (read-only); editing a
+         task still requires task_detail.php's own permission check -->
     <div class="section-label"><i class="fa fa-clipboard-list" style="margin-right:.4rem"></i>Team's Assigned Tasks</div>
     <div class="checklist-cards-grid">
       <?php foreach ($team_employees as $te):
@@ -432,11 +437,14 @@ $error   = get_flash('error');
         <div>
           <?php if (!$te_tasks): ?>
             <p class="empty-state" style="padding:.5rem 0">No tasks assigned.</p>
-          <?php else: foreach ($te_tasks as $t): ?>
-            <a href="/todo/task_detail.php?id=<?= $t['id'] ?>" class="chk-item-row chk-item-link">
+          <?php else: foreach ($te_tasks as $t):
+              $canOpen = $is_mgr || (int)$t['assigned_to'] === $eid || ($can_assign && (int)$t['assigned_by'] === $eid);
+              $tag = $canOpen ? 'a' : 'div';
+          ?>
+            <<?= $tag ?> <?= $canOpen ? 'href="/todo/task_detail.php?id=' . $t['id'] . '"' : '' ?> class="chk-item-row <?= $canOpen ? 'chk-item-link' : '' ?>">
               <span class="chk-title" style="<?= $t['status'] === 'completed' ? 'text-decoration:line-through;color:var(--clr-muted)' : '' ?>"><?= h($t['title']) ?></span>
               <span class="badge <?= $task_badge_map[$t['status']] ?? 'badge-secondary' ?>" style="font-size:.65rem"><?= ucwords(str_replace('_',' ',$t['status'])) ?></span>
-            </a>
+            </<?= $tag ?>>
           <?php endforeach; endif; ?>
         </div>
       </div>
@@ -445,7 +453,6 @@ $error   = get_flash('error');
         <p class="empty-state">No active employees.</p>
       <?php endif; ?>
     </div>
-    <?php endif; ?>
 
     <!-- Performance Stats -->
     <section class="section-card">
