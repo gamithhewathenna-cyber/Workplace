@@ -92,6 +92,7 @@ $notifications = $notifs->fetchAll();
 // own permission checks) ────────────────────────────────────────────
 $is_mgr     = is_manager();
 $can_assign = can_assign_tasks();
+$isAdmin    = ($_SESSION['role'] ?? '') === 'admin';
 $team_checklist_by_emp = [];
 $team_checklist_counts = [];
 $team_task_by_emp      = [];
@@ -140,6 +141,62 @@ if ($is_mgr) {
         $team_checklist_counts[$rEid]['total'] = ($team_checklist_counts[$rEid]['total'] ?? 0) + 1;
         $team_checklist_counts[$rEid]['done']  = ($team_checklist_counts[$rEid]['done']  ?? 0) + ($r['is_completed'] ? 1 : 0);
     }
+}
+
+// Render "Team's Daily Checklist" into a variable so it can be placed at
+// the top of the page for admins, but in its normal position for other
+// managers/HR — see the two spots later in this file where it's echoed.
+$section_team_checklist = '';
+if ($is_mgr) {
+    ob_start(); ?>
+    <!-- Team's Daily Checklist -->
+    <div class="section-label"><i class="fa fa-list-check" style="margin-right:.4rem"></i>Team's Daily Checklist — <?= date('d M Y', strtotime($today)) ?></div>
+    <div class="checklist-cards-grid">
+      <?php foreach ($team_employees as $te):
+          $te_check = $team_checklist_by_emp[$te['id']] ?? [];
+          $te_done  = $team_checklist_counts[$te['id']]['done']  ?? 0;
+          $te_total = $team_checklist_counts[$te['id']]['total'] ?? 0;
+          $te_pct   = $te_total ? round($te_done / $te_total * 100) : 0;
+      ?>
+      <div class="section-card checklist-emp-card">
+        <div class="section-header">
+          <div style="display:flex;align-items:center;gap:.65rem">
+            <div class="emp-avatar-sm"><?= strtoupper(substr($te['name'], 0, 1)) ?></div>
+            <div>
+              <h2 style="font-size:.92rem;margin:0"><?= h($te['name']) ?></h2>
+              <div style="font-size:.72rem;color:var(--clr-muted)"><?= h($te['position'] ?? $te['role']) ?></div>
+            </div>
+          </div>
+          <span class="badge <?= !$te_total ? 'badge-secondary' : ($te_pct === 100 ? 'badge-success' : 'badge-info') ?>"><?= $te_done ?>/<?= $te_total ?></span>
+        </div>
+        <?php if ($te_total): ?>
+        <div class="progress-bar-wrap" style="margin-bottom:.85rem">
+          <div class="progress-bar <?= $te_pct === 100 ? 'bar-green' : '' ?>" style="width:<?= $te_pct ?>%"></div>
+        </div>
+        <?php endif; ?>
+        <div>
+          <?php if (!$te_check): ?>
+            <p class="empty-state" style="padding:.5rem 0">No checklist assigned today.</p>
+          <?php else: foreach ($te_check as $it): ?>
+            <a href="/admin/checklist.php" class="chk-item-row chk-item-link">
+              <?php if ($it['is_completed']): ?>
+                <i class="fa fa-circle-check" style="color:#4ade80"></i>
+              <?php else: ?>
+                <i class="fa fa-clock" style="color:#eab308"></i>
+              <?php endif; ?>
+              <span class="chk-title" style="<?= $it['is_completed'] ? 'text-decoration:line-through;color:var(--clr-muted)' : '' ?>"><?= h($it['title']) ?></span>
+              <span class="badge <?= $it['is_completed'] ? 'badge-success' : 'badge-warning' ?>" style="font-size:.65rem"><?= $it['is_completed'] ? 'Completed' : 'Pending' ?></span>
+            </a>
+          <?php endforeach; endif; ?>
+        </div>
+      </div>
+      <?php endforeach; ?>
+      <?php if (!$team_employees): ?>
+        <p class="empty-state">No active employees.</p>
+      <?php endif; ?>
+    </div>
+    <?php
+    $section_team_checklist = ob_get_clean();
 }
 
 // ── Performance stats ──────────────────────────────────────
@@ -268,6 +325,10 @@ $error   = get_flash('error');
         </div>
       </div>
     </div>
+
+    <?php if ($isAdmin): ?>
+      <?= $section_team_checklist ?>
+    <?php endif; ?>
 
     <?php if (($_SESSION['role'] ?? '') !== 'admin'): ?>
     <div class="two-col">
@@ -434,53 +495,8 @@ $error   = get_flash('error');
       </div>
     </section>
 
-    <?php if ($is_mgr): ?>
-    <!-- Team's Daily Checklist -->
-    <div class="section-label"><i class="fa fa-list-check" style="margin-right:.4rem"></i>Team's Daily Checklist — <?= date('d M Y', strtotime($today)) ?></div>
-    <div class="checklist-cards-grid">
-      <?php foreach ($team_employees as $te):
-          $te_check = $team_checklist_by_emp[$te['id']] ?? [];
-          $te_done  = $team_checklist_counts[$te['id']]['done']  ?? 0;
-          $te_total = $team_checklist_counts[$te['id']]['total'] ?? 0;
-          $te_pct   = $te_total ? round($te_done / $te_total * 100) : 0;
-      ?>
-      <div class="section-card checklist-emp-card">
-        <div class="section-header">
-          <div style="display:flex;align-items:center;gap:.65rem">
-            <div class="emp-avatar-sm"><?= strtoupper(substr($te['name'], 0, 1)) ?></div>
-            <div>
-              <h2 style="font-size:.92rem;margin:0"><?= h($te['name']) ?></h2>
-              <div style="font-size:.72rem;color:var(--clr-muted)"><?= h($te['position'] ?? $te['role']) ?></div>
-            </div>
-          </div>
-          <span class="badge <?= !$te_total ? 'badge-secondary' : ($te_pct === 100 ? 'badge-success' : 'badge-info') ?>"><?= $te_done ?>/<?= $te_total ?></span>
-        </div>
-        <?php if ($te_total): ?>
-        <div class="progress-bar-wrap" style="margin-bottom:.85rem">
-          <div class="progress-bar <?= $te_pct === 100 ? 'bar-green' : '' ?>" style="width:<?= $te_pct ?>%"></div>
-        </div>
-        <?php endif; ?>
-        <div>
-          <?php if (!$te_check): ?>
-            <p class="empty-state" style="padding:.5rem 0">No checklist assigned today.</p>
-          <?php else: foreach ($te_check as $it): ?>
-            <a href="/admin/checklist.php" class="chk-item-row chk-item-link">
-              <?php if ($it['is_completed']): ?>
-                <i class="fa fa-circle-check" style="color:#4ade80"></i>
-              <?php else: ?>
-                <i class="fa fa-clock" style="color:#eab308"></i>
-              <?php endif; ?>
-              <span class="chk-title" style="<?= $it['is_completed'] ? 'text-decoration:line-through;color:var(--clr-muted)' : '' ?>"><?= h($it['title']) ?></span>
-              <span class="badge <?= $it['is_completed'] ? 'badge-success' : 'badge-warning' ?>" style="font-size:.65rem"><?= $it['is_completed'] ? 'Completed' : 'Pending' ?></span>
-            </a>
-          <?php endforeach; endif; ?>
-        </div>
-      </div>
-      <?php endforeach; ?>
-      <?php if (!$team_employees): ?>
-        <p class="empty-state">No active employees.</p>
-      <?php endif; ?>
-    </div>
+    <?php if (!$isAdmin): ?>
+      <?= $section_team_checklist ?>
     <?php endif; ?>
 
   </main>
