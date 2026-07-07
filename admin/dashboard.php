@@ -44,7 +44,9 @@ $now_ts = time();
   gap: 1rem;
   margin-bottom: 1.75rem;
 }
-.live-card {
+.live-card,
+a.live-card:link,
+a.live-card:visited {
   display: block;
   background: #111;
   border: 1px solid rgba(125,69,154,.35);
@@ -53,7 +55,7 @@ $now_ts = time();
   position: relative;
   overflow: hidden;
   text-decoration: none;
-  color: inherit;
+  color: #f0f0f0;
   transition: var(--transition);
 }
 .live-card:hover { border-color: #7d459a; box-shadow: var(--shadow-lg); }

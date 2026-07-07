@@ -413,13 +413,15 @@ body { font-family: var(--font); background: var(--clr-bg); color: var(--clr-tex
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: .75rem;
 }
-.task-card {
+.task-card,
+a.task-card:link,
+a.task-card:visited {
   display: block;
   border: 1px solid var(--clr-border);
   border-radius: var(--radius-sm);
   padding: .875rem 1rem;
   text-decoration: none;
-  color: inherit;
+  color: var(--clr-text);
   transition: var(--transition);
 }
 .task-card:hover { border-color: var(--clr-primary); box-shadow: var(--shadow-lg); }
@@ -527,9 +529,11 @@ body { font-family: var(--font); background: var(--clr-bg); color: var(--clr-tex
 }
 .chk-item-row:last-child { border-bottom: none; }
 .chk-item-row .chk-title { flex: 1; }
-.chk-item-row.chk-item-link {
+.chk-item-row.chk-item-link,
+a.chk-item-row.chk-item-link:link,
+a.chk-item-row.chk-item-link:visited {
   text-decoration: none;
-  color: inherit;
+  color: var(--clr-text);
   margin: 0 -.5rem;
   padding: .5rem;
   border-radius: 6px;
