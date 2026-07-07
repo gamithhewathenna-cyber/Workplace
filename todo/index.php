@@ -291,67 +291,67 @@ $error   = get_flash('error');
         </ul>
       </section>
 
-      <!-- Active Projects -->
-      <section class="section-card">
+      <!-- Assigned Tasks -->
+      <section class="section-card checklist-emp-card">
         <div class="section-header">
-          <h2><i class="fa fa-folder-open"></i> My Projects</h2>
-          <a href="projects.php" class="btn btn-sm">View All</a>
+          <div style="display:flex;align-items:center;gap:.65rem">
+            <div class="emp-avatar-sm"><?= strtoupper(substr($emp_display, 0, 1)) ?></div>
+            <div>
+              <h2 style="font-size:.92rem;margin:0"><?= h($emp_display) ?></h2>
+              <div style="font-size:.72rem;color:var(--clr-muted)"><?= h($me['position'] ?? $me['role'] ?? '') ?></div>
+            </div>
+          </div>
+          <span class="badge <?= !$my_task_total ? 'badge-secondary' : ($my_task_pct === 100 ? 'badge-success' : 'badge-info') ?>"><?= $my_task_done ?>/<?= $my_task_total ?></span>
         </div>
-        <div class="project-list">
-          <?php foreach ($projects as $p): ?>
-          <a href="project_detail.php?id=<?= $p['id'] ?>" class="project-card">
-            <div class="proj-name"><?= h($p['name']) ?></div>
-            <div class="proj-meta">
-              <span><?= h($p['client_name'] ?? 'No Client') ?></span>
-              <span class="badge priority-<?= $p['priority'] ?>"><?= ucfirst($p['priority']) ?></span>
-            </div>
-            <div class="progress-bar-wrap">
-              <div class="progress-bar" style="width:<?= $p['completion_percent'] ?>%"></div>
-            </div>
-            <div class="proj-footer">
-              <span><?= $p['completion_percent'] ?>% complete</span>
-              <?php if ($p['deadline']): ?>
-                <span class="due-date"><i class="fa fa-calendar-alt"></i> <?= date('d M', strtotime($p['deadline'])) ?></span>
-              <?php endif; ?>
-            </div>
-          </a>
-          <?php endforeach; ?>
-          <?php if (!$projects): ?><p class="empty-state">No active projects assigned.</p><?php endif; ?>
+        <?php if ($my_task_total): ?>
+        <div class="progress-bar-wrap" style="margin-bottom:.85rem">
+          <div class="progress-bar <?= $my_task_pct === 100 ? 'bar-green' : '' ?>" style="width:<?= $my_task_pct ?>%"></div>
+        </div>
+        <?php endif; ?>
+        <div>
+          <?php if (!$myTasksAll): ?>
+            <p class="empty-state" style="padding:.5rem 0">No tasks assigned 🎉</p>
+          <?php else: foreach ($myTasksAll as $t): ?>
+            <a href="task_detail.php?id=<?= $t['id'] ?>" class="chk-item-row chk-item-link">
+              <span class="chk-title" style="<?= $t['status'] === 'completed' ? 'text-decoration:line-through;color:var(--clr-muted)' : '' ?>"><?= h($t['title']) ?></span>
+              <span class="badge <?= $task_badge_map[$t['status']] ?? 'badge-secondary' ?>" style="font-size:.65rem"><?= ucwords(str_replace('_',' ',$t['status'])) ?></span>
+            </a>
+          <?php endforeach; endif; ?>
+        </div>
+        <div style="text-align:right;margin-top:.75rem">
+          <a href="tasks.php" class="btn btn-sm">View All</a>
         </div>
       </section>
     </div>
     <?php endif; ?>
 
     <?php if (($_SESSION['role'] ?? '') !== 'admin'): ?>
-    <!-- Assigned Tasks -->
-    <section class="section-card checklist-emp-card">
+    <!-- Active Projects -->
+    <section class="section-card">
       <div class="section-header">
-        <div style="display:flex;align-items:center;gap:.65rem">
-          <div class="emp-avatar-sm"><?= strtoupper(substr($emp_display, 0, 1)) ?></div>
-          <div>
-            <h2 style="font-size:.92rem;margin:0"><?= h($emp_display) ?></h2>
-            <div style="font-size:.72rem;color:var(--clr-muted)"><?= h($me['position'] ?? $me['role'] ?? '') ?></div>
+        <h2><i class="fa fa-folder-open"></i> My Projects</h2>
+        <a href="projects.php" class="btn btn-sm">View All</a>
+      </div>
+      <div class="project-list">
+        <?php foreach ($projects as $p): ?>
+        <a href="project_detail.php?id=<?= $p['id'] ?>" class="project-card">
+          <div class="proj-name"><?= h($p['name']) ?></div>
+          <div class="proj-meta">
+            <span><?= h($p['client_name'] ?? 'No Client') ?></span>
+            <span class="badge priority-<?= $p['priority'] ?>"><?= ucfirst($p['priority']) ?></span>
           </div>
-        </div>
-        <span class="badge <?= !$my_task_total ? 'badge-secondary' : ($my_task_pct === 100 ? 'badge-success' : 'badge-info') ?>"><?= $my_task_done ?>/<?= $my_task_total ?></span>
-      </div>
-      <?php if ($my_task_total): ?>
-      <div class="progress-bar-wrap" style="margin-bottom:.85rem">
-        <div class="progress-bar <?= $my_task_pct === 100 ? 'bar-green' : '' ?>" style="width:<?= $my_task_pct ?>%"></div>
-      </div>
-      <?php endif; ?>
-      <div>
-        <?php if (!$myTasksAll): ?>
-          <p class="empty-state" style="padding:.5rem 0">No tasks assigned 🎉</p>
-        <?php else: foreach ($myTasksAll as $t): ?>
-          <a href="task_detail.php?id=<?= $t['id'] ?>" class="chk-item-row chk-item-link">
-            <span class="chk-title" style="<?= $t['status'] === 'completed' ? 'text-decoration:line-through;color:var(--clr-muted)' : '' ?>"><?= h($t['title']) ?></span>
-            <span class="badge <?= $task_badge_map[$t['status']] ?? 'badge-secondary' ?>" style="font-size:.65rem"><?= ucwords(str_replace('_',' ',$t['status'])) ?></span>
-          </a>
-        <?php endforeach; endif; ?>
-      </div>
-      <div style="text-align:right;margin-top:.75rem">
-        <a href="tasks.php" class="btn btn-sm">View All</a>
+          <div class="progress-bar-wrap">
+            <div class="progress-bar" style="width:<?= $p['completion_percent'] ?>%"></div>
+          </div>
+          <div class="proj-footer">
+            <span><?= $p['completion_percent'] ?>% complete</span>
+            <?php if ($p['deadline']): ?>
+              <span class="due-date"><i class="fa fa-calendar-alt"></i> <?= date('d M', strtotime($p['deadline'])) ?></span>
+            <?php endif; ?>
+          </div>
+        </a>
+        <?php endforeach; ?>
+        <?php if (!$projects): ?><p class="empty-state">No active projects assigned.</p><?php endif; ?>
       </div>
     </section>
     <?php endif; ?>
