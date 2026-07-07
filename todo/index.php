@@ -362,7 +362,7 @@ $error   = get_flash('error');
           <?php if (!$te_check): ?>
             <p class="empty-state" style="padding:.5rem 0">No checklist assigned today.</p>
           <?php else: foreach ($te_check as $it): ?>
-            <div class="chk-item-row">
+            <a href="/admin/checklist.php" class="chk-item-row chk-item-link">
               <?php if ($it['is_completed']): ?>
                 <i class="fa fa-circle-check" style="color:#4ade80"></i>
               <?php else: ?>
@@ -370,7 +370,7 @@ $error   = get_flash('error');
               <?php endif; ?>
               <span class="chk-title" style="<?= $it['is_completed'] ? 'text-decoration:line-through;color:var(--clr-muted)' : '' ?>"><?= h($it['title']) ?></span>
               <span class="badge <?= $it['is_completed'] ? 'badge-success' : 'badge-warning' ?>" style="font-size:.65rem"><?= $it['is_completed'] ? 'Completed' : 'Pending' ?></span>
-            </div>
+            </a>
           <?php endforeach; endif; ?>
         </div>
       </div>
