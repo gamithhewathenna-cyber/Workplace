@@ -45,13 +45,18 @@ $now_ts = time();
   margin-bottom: 1.75rem;
 }
 .live-card {
+  display: block;
   background: #111;
   border: 1px solid rgba(125,69,154,.35);
   border-radius: 14px;
   padding: 1.15rem 1.25rem;
   position: relative;
   overflow: hidden;
+  text-decoration: none;
+  color: inherit;
+  transition: var(--transition);
 }
+.live-card:hover { border-color: #7d459a; box-shadow: var(--shadow-lg); }
 .live-card::before {
   content: '';
   position: absolute;
@@ -152,7 +157,7 @@ $now_ts = time();
           $elapsed = $now_ts - (int)$ls['started_ts'] - (int)$ls['break_seconds'];
           $elapsed = max(0, $elapsed);
       ?>
-      <div class="live-card">
+      <a href="/todo/task_detail.php?id=<?= $ls['task_id'] ?>" class="live-card">
         <div class="live-pulse">
           <span class="live-dot"></span> Live
         </div>
@@ -182,7 +187,7 @@ $now_ts = time();
             <?= $ls['client_name'] ? '<i class="fa fa-building" style="margin-right:.25rem"></i>' . h($ls['client_name']) : '' ?>
           </div>
         </div>
-      </div>
+      </a>
       <?php endforeach; ?>
     </div>
     <?php endif; ?>

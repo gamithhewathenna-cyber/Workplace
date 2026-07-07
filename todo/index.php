@@ -305,7 +305,7 @@ $error   = get_flash('error');
       </div>
       <div class="task-cards-grid">
         <?php foreach ($openTasks as $t): ?>
-        <div class="task-card <?= $t['due_date'] && $t['due_date'] < $today ? 'overdue' : '' ?>">
+        <a href="task_detail.php?id=<?= $t['id'] ?>" class="task-card <?= $t['due_date'] && $t['due_date'] < $today ? 'overdue' : '' ?>">
           <div class="task-card-title"><?= h($t['title']) ?></div>
           <div class="task-card-meta">
             <span><?= h($t['client_name'] ?? 'No Client') ?></span>
@@ -323,10 +323,7 @@ $error   = get_flash('error');
               <?php endif; ?>
             </span>
           </div>
-          <div class="task-card-footer">
-            <a href="task_detail.php?id=<?= $t['id'] ?>" class="btn btn-xs"><i class="fa fa-eye"></i> View</a>
-          </div>
-        </div>
+        </a>
         <?php endforeach; ?>
         <?php if (!$openTasks): ?>
           <p class="empty-state">No open tasks 🎉</p>
@@ -420,10 +417,10 @@ $error   = get_flash('error');
           <?php if (!$te_tasks): ?>
             <p class="empty-state" style="padding:.5rem 0">No tasks assigned.</p>
           <?php else: foreach ($te_tasks as $t): ?>
-            <div class="chk-item-row">
+            <a href="/todo/task_detail.php?id=<?= $t['id'] ?>" class="chk-item-row chk-item-link">
               <span class="chk-title" style="<?= $t['status'] === 'completed' ? 'text-decoration:line-through;color:var(--clr-muted)' : '' ?>"><?= h($t['title']) ?></span>
               <span class="badge <?= $task_badge_map[$t['status']] ?? 'badge-secondary' ?>" style="font-size:.65rem"><?= ucwords(str_replace('_',' ',$t['status'])) ?></span>
-            </div>
+            </a>
           <?php endforeach; endif; ?>
         </div>
       </div>
