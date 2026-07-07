@@ -359,6 +359,34 @@ $error   = get_flash('error');
     </section>
     <?php endif; ?>
 
+    <!-- Performance Stats -->
+    <section class="section-card">
+      <div class="section-header"><h2><i class="fa fa-chart-bar"></i> Monthly Performance</h2></div>
+      <div class="perf-grid">
+        <div class="perf-item">
+          <div class="perf-label">On-Time Login</div>
+          <div class="perf-ring" data-pct="<?= $att_pct ?>">
+            <svg viewBox="0 0 36 36"><circle class="ring-bg" cx="18" cy="18" r="15.9"/><circle class="ring-fill" cx="18" cy="18" r="15.9" stroke-dasharray="<?= $att_pct ?> 100"/></svg>
+            <span><?= $att_pct ?>%</span>
+          </div>
+        </div>
+        <div class="perf-item">
+          <div class="perf-label">Task Completion</div>
+          <div class="perf-ring" data-pct="<?= $task_pct ?>">
+            <svg viewBox="0 0 36 36"><circle class="ring-bg" cx="18" cy="18" r="15.9"/><circle class="ring-fill" cx="18" cy="18" r="15.9" stroke-dasharray="<?= $task_pct ?> 100"/></svg>
+            <span><?= $task_pct ?>%</span>
+          </div>
+        </div>
+        <div class="perf-item">
+          <div class="perf-label">Checklist Today</div>
+          <div class="perf-ring" data-pct="<?= $chk_pct ?>">
+            <svg viewBox="0 0 36 36"><circle class="ring-bg" cx="18" cy="18" r="15.9"/><circle class="ring-fill" cx="18" cy="18" r="15.9" stroke-dasharray="<?= $chk_pct ?> 100"/></svg>
+            <span><?= $chk_pct ?>%</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <?php if ($is_mgr): ?>
     <!-- Team's Daily Checklist -->
     <div class="section-label"><i class="fa fa-list-check" style="margin-right:.4rem"></i>Team's Daily Checklist — <?= date('d M Y', strtotime($today)) ?></div>
@@ -453,34 +481,6 @@ $error   = get_flash('error');
         <p class="empty-state">No active employees.</p>
       <?php endif; ?>
     </div>
-
-    <!-- Performance Stats -->
-    <section class="section-card">
-      <div class="section-header"><h2><i class="fa fa-chart-bar"></i> Monthly Performance</h2></div>
-      <div class="perf-grid">
-        <div class="perf-item">
-          <div class="perf-label">On-Time Login</div>
-          <div class="perf-ring" data-pct="<?= $att_pct ?>">
-            <svg viewBox="0 0 36 36"><circle class="ring-bg" cx="18" cy="18" r="15.9"/><circle class="ring-fill" cx="18" cy="18" r="15.9" stroke-dasharray="<?= $att_pct ?> 100"/></svg>
-            <span><?= $att_pct ?>%</span>
-          </div>
-        </div>
-        <div class="perf-item">
-          <div class="perf-label">Task Completion</div>
-          <div class="perf-ring" data-pct="<?= $task_pct ?>">
-            <svg viewBox="0 0 36 36"><circle class="ring-bg" cx="18" cy="18" r="15.9"/><circle class="ring-fill" cx="18" cy="18" r="15.9" stroke-dasharray="<?= $task_pct ?> 100"/></svg>
-            <span><?= $task_pct ?>%</span>
-          </div>
-        </div>
-        <div class="perf-item">
-          <div class="perf-label">Checklist Today</div>
-          <div class="perf-ring" data-pct="<?= $chk_pct ?>">
-            <svg viewBox="0 0 36 36"><circle class="ring-bg" cx="18" cy="18" r="15.9"/><circle class="ring-fill" cx="18" cy="18" r="15.9" stroke-dasharray="<?= $chk_pct ?> 100"/></svg>
-            <span><?= $chk_pct ?>%</span>
-          </div>
-        </div>
-      </div>
-    </section>
   </main>
 </div>
 
