@@ -11,7 +11,6 @@ $is_mgr     = is_manager();
 $can_assign = can_assign_tasks();
 $isAdmin    = ($_SESSION['role'] ?? '') === 'admin';
 $today      = date('Y-m-d');
-$default_due_date = date('Y-m-d', strtotime('+7 days')); // suggested default when assigning a task; freely changeable
 
 // ── Handle POST ────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -343,7 +342,7 @@ $error   = get_flash('error');
         </div>
         <div class="form-group">
           <label>Due Date</label>
-          <input type="date" name="due_date" class="input" min="<?= $today ?>" value="<?= $default_due_date ?>">
+          <input type="date" name="due_date" class="input" min="<?= $today ?>">
         </div>
         <div class="form-group">
           <label>Estimated Hours</label>
