@@ -49,7 +49,8 @@ $myAllTasks = db()->prepare("
     FROM tasks t
     LEFT JOIN clients c ON c.id = t.client_id
     WHERE t.assigned_to=? AND t.status != 'cancelled' AND t.archived_at IS NULL
-    ORDER BY FIELD(t.priority,'critical','high','medium','low'), t.due_date ASC
+    ORDER BY FIELD(t.status,'not_started','in_progress','waiting_client','under_review','completed'),
+             FIELD(t.priority,'critical','high','medium','low'), t.due_date ASC
 ");
 $myAllTasks->execute([$eid]);
 $myTasksAll = $myAllTasks->fetchAll();
@@ -111,7 +112,8 @@ $team_task_rows = db()->query("
     FROM tasks t
     LEFT JOIN clients c ON c.id = t.client_id
     WHERE t.status != 'cancelled' AND t.archived_at IS NULL
-    ORDER BY FIELD(t.priority,'critical','high','medium','low'), t.due_date ASC
+    ORDER BY FIELD(t.status,'not_started','in_progress','waiting_client','under_review','completed'),
+             FIELD(t.priority,'critical','high','medium','low'), t.due_date ASC
 ")->fetchAll();
 foreach ($team_task_rows as $t) {
     $rEid = (int)$t['assigned_to'];
