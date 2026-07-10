@@ -118,17 +118,22 @@ $team_employees = db()->query("
     ORDER BY name ASC
 ")->fetchAll();
 
-// Who's on approved leave today (any type) — shown as a badge on their card
+// Who's on approved leave today — shown as a badge on their card.
+// Deliberately doesn't say which leave type (Annual/Medical/etc.), just
+// whether it's a half day (morning/afternoon) or a full day off.
 $onLeaveToday = [];
 $leaveRows = db()->prepare("
-    SELECT lr.employee_id, lt.name AS type_name
+    SELECT lr.employee_id, lr.is_half_day, lr.half_day_type
     FROM leave_requests lr
-    JOIN leave_types lt ON lt.id = lr.leave_type_id
     WHERE lr.status = 'approved' AND ? BETWEEN lr.start_date AND lr.end_date
 ");
 $leaveRows->execute([$today]);
 foreach ($leaveRows->fetchAll() as $r) {
-    $onLeaveToday[(int)$r['employee_id']] = $r['type_name'];
+    if ($r['is_half_day']) {
+        $onLeaveToday[(int)$r['employee_id']] = ucfirst($r['half_day_type'] ?: 'morning') . ' Halfday';
+    } else {
+        $onLeaveToday[(int)$r['employee_id']] = 'Full Day';
+    }
 }
 
 $team_task_rows = db()->query("
@@ -188,7 +193,7 @@ if ($is_mgr) {
       <div class="section-card checklist-emp-card">
         <?php if (isset($onLeaveToday[$te['id']])): ?>
           <div class="badge badge-warning" style="width:100%;justify-content:center;margin-bottom:.65rem;font-size:.68rem;padding:.4rem .6rem">
-            <i class="fa fa-plane-departure"></i>&nbsp;Today On Leave — <?= h($onLeaveToday[$te['id']]) ?>
+            <i class="fa fa-plane-departure"></i>&nbsp;Today On Leave: <?= h($onLeaveToday[$te['id']]) ?>
           </div>
         <?php endif; ?>
         <div class="section-header">
@@ -405,7 +410,7 @@ $error   = get_flash('error');
       <section class="section-card checklist-emp-card">
         <?php if (isset($onLeaveToday[$eid])): ?>
           <div class="badge badge-warning" style="width:100%;justify-content:center;margin-bottom:.65rem;font-size:.68rem;padding:.4rem .6rem">
-            <i class="fa fa-plane-departure"></i>&nbsp;Today On Leave — <?= h($onLeaveToday[$eid]) ?>
+            <i class="fa fa-plane-departure"></i>&nbsp;Today On Leave: <?= h($onLeaveToday[$eid]) ?>
           </div>
         <?php endif; ?>
         <div class="section-header">
@@ -453,7 +458,7 @@ $error   = get_flash('error');
       <div class="section-card checklist-emp-card">
         <?php if (isset($onLeaveToday[$te['id']])): ?>
           <div class="badge badge-warning" style="width:100%;justify-content:center;margin-bottom:.65rem;font-size:.68rem;padding:.4rem .6rem">
-            <i class="fa fa-plane-departure"></i>&nbsp;Today On Leave — <?= h($onLeaveToday[$te['id']]) ?>
+            <i class="fa fa-plane-departure"></i>&nbsp;Today On Leave: <?= h($onLeaveToday[$te['id']]) ?>
           </div>
         <?php endif; ?>
         <div class="section-header">
