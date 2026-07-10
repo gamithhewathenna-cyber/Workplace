@@ -41,6 +41,7 @@ $emp_role = $_SESSION['role']     ?? 'employee';
   <!-- Management -->
   <div class="sidebar-section">Management</div>
   <a href="/admin/dashboard.php"  class="sidebar-link <?= is_active('/admin/dashboard') ?>"><i class="fa fa-chart-bar"></i> Team Overview</a>
+  <a href="/admin/announcements.php" class="sidebar-link <?= is_active('/admin/announcements') ?>"><i class="fa fa-bullhorn"></i> Announcements</a>
   <a href="/admin/checklist.php"  class="sidebar-link <?= is_active('/admin/checklist') ?>"><i class="fa fa-list-check"></i> Checklist Setup</a>
   <a href="/admin/projects.php"   class="sidebar-link <?= is_active('/admin/projects') ?>"><i class="fa fa-project-diagram"></i> Manage Projects</a>
   <a href="/admin/attendance.php" class="sidebar-link <?= is_active('/admin/attendance') ?>"><i class="fa fa-user-clock"></i> Attendance</a>

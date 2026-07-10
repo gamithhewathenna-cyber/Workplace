@@ -10,6 +10,18 @@ $eid   = current_employee_id();
 $today = date('Y-m-d');
 $now   = date('H:i:s');
 
+// ── Company announcements not yet dismissed by this employee ────────
+$announcements = db()->prepare("
+    SELECT ca.id, ca.title, ca.message, ca.created_at, e.name AS author_name
+    FROM company_announcements ca
+    JOIN employees e ON e.id = ca.created_by
+    LEFT JOIN announcement_dismissals ad ON ad.announcement_id = ca.id AND ad.employee_id = ?
+    WHERE ca.is_active = 1 AND ad.employee_id IS NULL
+    ORDER BY ca.created_at DESC
+");
+$announcements->execute([$eid]);
+$announcements = $announcements->fetchAll();
+
 // ── Login status ───────────────────────────────────────────
 $loginLog = db()->prepare("SELECT * FROM emp_login_log WHERE employee_id=? AND login_date=?");
 $loginLog->execute([$eid, $today]);
@@ -277,6 +289,19 @@ $error   = get_flash('error');
 
     <?php if ($success): ?><div class="alert alert-success"><i class="fa fa-check-circle"></i> <?= h($success) ?></div><?php endif; ?>
     <?php if ($error):   ?><div class="alert alert-danger"><i class="fa fa-exclamation-circle"></i> <?= h($error) ?></div><?php endif; ?>
+
+    <!-- Company Announcements -->
+    <?php foreach ($announcements as $a): ?>
+    <div class="announcement-banner" id="announcement-<?= $a['id'] ?>">
+      <div class="announcement-icon"><i class="fa fa-bullhorn"></i></div>
+      <div class="announcement-body">
+        <div class="announcement-title"><?= h($a['title']) ?></div>
+        <div class="announcement-text"><?= nl2br(h($a['message'])) ?></div>
+        <div class="announcement-meta"><?= h($a['author_name']) ?> · <?= date('d M Y, h:i A', strtotime($a['created_at'])) ?></div>
+      </div>
+      <button type="button" class="announcement-dismiss" onclick="dismissAnnouncement(<?= $a['id'] ?>)" aria-label="Dismiss"><i class="fa fa-xmark"></i></button>
+    </div>
+    <?php endforeach; ?>
 
     <!-- Welcome Banner -->
     <?php
@@ -552,6 +577,17 @@ async function toggleCheck(id) {
   });
   const data = await res.json();
   if (data.ok) location.reload();
+}
+
+// Dismiss a company announcement banner
+async function dismissAnnouncement(id) {
+  const el = document.getElementById('announcement-' + id);
+  if (el) { el.style.opacity = '0'; setTimeout(() => el.remove(), 200); }
+  await fetch('/api/announcement_dismiss.php', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({id})
+  });
 }
 </script>
 </body>
