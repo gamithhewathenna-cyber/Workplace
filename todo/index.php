@@ -106,6 +106,19 @@ $team_employees = db()->query("
     ORDER BY name ASC
 ")->fetchAll();
 
+// Who's on approved leave today (any type) — shown as a badge on their card
+$onLeaveToday = [];
+$leaveRows = db()->prepare("
+    SELECT lr.employee_id, lt.name AS type_name
+    FROM leave_requests lr
+    JOIN leave_types lt ON lt.id = lr.leave_type_id
+    WHERE lr.status = 'approved' AND ? BETWEEN lr.start_date AND lr.end_date
+");
+$leaveRows->execute([$today]);
+foreach ($leaveRows->fetchAll() as $r) {
+    $onLeaveToday[(int)$r['employee_id']] = $r['type_name'];
+}
+
 $team_task_rows = db()->query("
     SELECT t.id, t.title, t.status, t.priority, t.due_date, t.assigned_to, t.assigned_by,
            c.name AS client_name
@@ -161,6 +174,11 @@ if ($is_mgr) {
           $te_pct   = $te_total ? round($te_done / $te_total * 100) : 0;
       ?>
       <div class="section-card checklist-emp-card">
+        <?php if (isset($onLeaveToday[$te['id']])): ?>
+          <div class="badge badge-warning" style="width:100%;justify-content:center;margin-bottom:.65rem;font-size:.68rem;padding:.4rem .6rem">
+            <i class="fa fa-plane-departure"></i>&nbsp;Today On Leave — <?= h($onLeaveToday[$te['id']]) ?>
+          </div>
+        <?php endif; ?>
         <div class="section-header">
           <div style="display:flex;align-items:center;gap:.65rem">
             <div class="emp-avatar-sm"><?= strtoupper(substr($te['name'], 0, 1)) ?></div>
@@ -360,6 +378,11 @@ $error   = get_flash('error');
 
       <!-- Assigned Tasks -->
       <section class="section-card checklist-emp-card">
+        <?php if (isset($onLeaveToday[$eid])): ?>
+          <div class="badge badge-warning" style="width:100%;justify-content:center;margin-bottom:.65rem;font-size:.68rem;padding:.4rem .6rem">
+            <i class="fa fa-plane-departure"></i>&nbsp;Today On Leave — <?= h($onLeaveToday[$eid]) ?>
+          </div>
+        <?php endif; ?>
         <div class="section-header">
           <div style="display:flex;align-items:center;gap:.65rem">
             <div class="emp-avatar-sm"><?= strtoupper(substr($emp_display, 0, 1)) ?></div>
@@ -403,6 +426,11 @@ $error   = get_flash('error');
           $te_tpct   = $te_ttotal ? round($te_tdone / $te_ttotal * 100) : 0;
       ?>
       <div class="section-card checklist-emp-card">
+        <?php if (isset($onLeaveToday[$te['id']])): ?>
+          <div class="badge badge-warning" style="width:100%;justify-content:center;margin-bottom:.65rem;font-size:.68rem;padding:.4rem .6rem">
+            <i class="fa fa-plane-departure"></i>&nbsp;Today On Leave — <?= h($onLeaveToday[$te['id']]) ?>
+          </div>
+        <?php endif; ?>
         <div class="section-header">
           <div style="display:flex;align-items:center;gap:.65rem">
             <div class="emp-avatar-sm"><?= strtoupper(substr($te['name'], 0, 1)) ?></div>
