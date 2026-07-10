@@ -7,6 +7,19 @@ require_once __DIR__ . '/../includes/config.php';
 require_login();
 if (!is_manager()) redirect('/leave/index.php');
 
+// Parses a single date string against a fixed set of unambiguous formats
+// (deliberately avoids strtotime()'s locale-ambiguous slash-date guessing).
+function parse_holiday_date(string $raw): ?string {
+    $raw = trim($raw);
+    foreach (['Y-m-d', 'd-m-Y', 'd/m/Y', 'Y/m/d', 'd.m.Y', 'd M Y', 'j M Y', 'd F Y', 'j F Y'] as $fmt) {
+        $d = DateTime::createFromFormat($fmt, $raw);
+        if ($d && $d->format($fmt) === $raw) {
+            return $d->format('Y-m-d');
+        }
+    }
+    return null;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     if ($action === 'add') {
@@ -17,6 +30,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             db()->prepare("INSERT IGNORE INTO holidays (name,date,type) VALUES (?,?,?)")->execute([$name, $date, $type]);
             flash('success', 'Holiday added.');
         }
+    }
+    elseif ($action === 'import') {
+        $csvText = '';
+        if (!empty($_FILES['csv_file']['tmp_name']) && $_FILES['csv_file']['error'] === UPLOAD_ERR_OK) {
+            $csvText = file_get_contents($_FILES['csv_file']['tmp_name']);
+        } elseif (trim($_POST['csv_text'] ?? '') !== '') {
+            $csvText = $_POST['csv_text'];
+        }
+
+        if (trim($csvText) === '') {
+            flash('error', 'Upload a CSV file or paste CSV rows to import.');
+            redirect('holidays.php');
+        }
+
+        $ins = db()->prepare("INSERT IGNORE INTO holidays (name,date,type) VALUES (?,?,?)");
+        $added = 0; $skipped = 0;
+
+        foreach (preg_split('/\r\n|\r|\n/', trim($csvText)) as $line) {
+            $line = trim($line);
+            if ($line === '') continue;
+
+            $cols = str_getcsv($line);
+            $name = trim($cols[0] ?? '');
+            $date = parse_holiday_date($cols[1] ?? '');
+            $type = strtolower(trim($cols[2] ?? 'public'));
+            if (!in_array($type, ['public', 'company'], true)) $type = 'public';
+
+            if (!$name || !$date) { $skipped++; continue; }
+
+            $ins->execute([$name, $date, $type]);
+            if ($ins->rowCount() > 0) { $added++; } else { $skipped++; }
+        }
+
+        $msg = "Imported $added holiday(s).";
+        if ($skipped) $msg .= " Skipped $skipped row(s) (duplicate dates, header row, or unrecognized format).";
+        flash('success', $msg);
+        redirect('holidays.php');
     }
     elseif ($action === 'delete') {
         db()->prepare("DELETE FROM holidays WHERE id=?")->execute([(int)$_POST['id']]);
@@ -31,6 +81,7 @@ $holidays->execute([$year]);
 $list = $holidays->fetchAll();
 
 $success = get_flash('success');
+$error   = get_flash('error');
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -54,6 +105,30 @@ $success = get_flash('success');
       </div>
     </div>
     <?php if ($success): ?><div class="alert alert-success"><?= h($success) ?></div><?php endif; ?>
+    <?php if ($error):   ?><div class="alert alert-danger"><?= h($error) ?></div><?php endif; ?>
+
+    <!-- CSV Import -->
+    <section class="section-card">
+      <div class="section-header"><h2><i class="fa fa-file-csv"></i> Import Holidays from CSV</h2></div>
+      <form method="post" enctype="multipart/form-data">
+        <input type="hidden" name="action" value="import">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Upload CSV File</label>
+            <input type="file" name="csv_file" class="input" accept=".csv,text/csv">
+          </div>
+          <div class="form-group">
+            <label>…or Paste CSV Rows</label>
+            <textarea name="csv_text" class="input" rows="4" style="resize:vertical" placeholder="New Year's Day,2026-01-01,public&#10;Independence Day,2026-02-04,public&#10;Office Anniversary,2026-06-15,company"></textarea>
+          </div>
+        </div>
+        <p style="font-size:.78rem;color:var(--clr-muted);margin:.5rem 0 1rem">
+          One holiday per line: <code>Name,Date,Type</code> — Type is optional (<code>public</code> or <code>company</code>, defaults to <code>public</code>).
+          Dates accept <code>YYYY-MM-DD</code>, <code>DD-MM-YYYY</code>, or <code>DD/MM/YYYY</code>. Duplicate dates are skipped automatically.
+        </p>
+        <button class="btn btn-primary"><i class="fa fa-upload"></i> Import Holidays</button>
+      </form>
+    </section>
 
     <div class="two-col">
       <section class="section-card">
