@@ -6,9 +6,10 @@
 require_once __DIR__ . '/../includes/config.php';
 require_login();
 
-$eid   = current_employee_id();
-$today = date('Y-m-d');
-$now   = date('H:i:s');
+$eid      = current_employee_id();
+$today    = date('Y-m-d');
+$now      = date('H:i:s');
+$isWeekend = in_array((int)date('N', strtotime($today)), [6, 7], true); // 6=Saturday, 7=Sunday — not a working day
 
 // ── Company announcements not yet dismissed by this employee ────────
 $announcements = db()->prepare("
@@ -318,7 +319,9 @@ $error   = get_flash('error');
       <div class="welcome-text">
         <h2><?= $greeting ?>, <?= h($emp_display) ?>!</h2>
         <p id="live-clock-banner"><?= date('l, d F Y') ?> &nbsp;·&nbsp;
-          <?php if ($loginInfo): ?>
+          <?php if ($isWeekend): ?>
+            Enjoy your holiday! 🎉
+          <?php elseif ($loginInfo): ?>
             Logged in at <?= date('h:i A', strtotime($loginInfo['first_login'])) ?>
             <?= $loginInfo['status'] === 'late' ? '&nbsp;<span style="background:rgba(255,255,255,.25);border-radius:50px;padding:.1rem .6rem;font-size:.75rem">Late by ' . $loginInfo['minutes_late'] . ' min</span>' : '' ?>
           <?php else: ?>
@@ -331,11 +334,13 @@ $error   = get_flash('error');
 
     <!-- Login Status Card -->
     <div class="cards-row">
-      <div class="card card-login <?= $loginInfo['status'] ?? '' ?>">
-        <div class="card-icon"><i class="fa fa-clock"></i></div>
+      <div class="card card-login <?= $isWeekend ? '' : ($loginInfo['status'] ?? '') ?>">
+        <div class="card-icon"><i class="fa <?= $isWeekend ? 'fa-mug-hot' : 'fa-clock' ?>"></i></div>
         <div class="card-body">
           <div class="card-label">Login Status</div>
-          <?php if ($loginInfo): ?>
+          <?php if ($isWeekend): ?>
+            <div class="card-value" style="font-size:1.1rem">🎉 Enjoy Your Holiday</div>
+          <?php elseif ($loginInfo): ?>
             <div class="card-value"><?= date('h:i A', strtotime($loginInfo['first_login'])) ?></div>
             <?php if ($loginInfo['status'] === 'on_time'): ?>
               <span class="badge badge-success"><i class="fa fa-check"></i> On Time</span>
