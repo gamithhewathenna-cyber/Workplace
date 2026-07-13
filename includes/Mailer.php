@@ -27,7 +27,7 @@ class SmtpMailer {
         $this->from_name  = $cfg['from_name']  ?? '';
     }
 
-    public function send(string $to_email, string $to_name, string $subject, string $body, bool $html = true): bool {
+    public function send(string $to_email, string $to_name, string $subject, string $body, bool $html = true, array $cc = []): bool {
         try {
             $this->connect();
             $this->ehlo();
@@ -52,12 +52,18 @@ class SmtpMailer {
                 ? '"' . addslashes($this->from_name) . '" <' . $this->from_email . '>'
                 : $this->from_email;
             $to_hdr   = $to_name ? '"' . addslashes($to_name) . '" <' . $to_email . '>' : $to_email;
+            $cc       = array_values(array_unique(array_filter($cc)));
 
             $this->write('MAIL FROM:<' . $this->from_email . '>');
             $this->expect(250, 'MAIL FROM');
 
             $this->write('RCPT TO:<' . $to_email . '>');
             $this->expect(250, 'RCPT TO');
+
+            foreach ($cc as $cc_email) {
+                $this->write('RCPT TO:<' . $cc_email . '>');
+                $this->expect(250, 'RCPT TO (cc)');
+            }
 
             $this->write('DATA');
             $this->expect(354, 'DATA');
@@ -67,6 +73,9 @@ class SmtpMailer {
 
             $msg  = "From: $from_hdr\r\n";
             $msg .= "To: $to_hdr\r\n";
+            if ($cc) {
+                $msg .= "Cc: " . implode(', ', $cc) . "\r\n";
+            }
             $msg .= "Subject: $enc_subj\r\n";
             $msg .= "Date: " . date('r') . "\r\n";
             $msg .= "MIME-Version: 1.0\r\n";
@@ -159,13 +168,16 @@ class SmtpMailer {
  * Returns true on success, false on failure.
  * Call get_mail_error() to retrieve the error message.
  */
-function send_mail(string $to_email, string $to_name, string $subject, string $body, bool $html = true): bool {
+function send_mail(string $to_email, string $to_name, string $subject, string $body, bool $html = true, array $cc = []): bool {
     $host = get_setting('smtp_host');
 
     // Fall back to PHP mail() if SMTP not configured
     if (!$host) {
         $from    = get_setting('smtp_from_email') ?: ('noreply@' . ($_SERVER['HTTP_HOST'] ?? 'localhost'));
         $headers = "From: $from\r\nContent-Type: text/" . ($html ? 'html' : 'plain') . "; charset=UTF-8";
+        if ($cc) {
+            $headers .= "\r\nCc: " . implode(', ', array_unique(array_filter($cc)));
+        }
         return @mail($to_email, $subject, $body, $headers);
     }
 
@@ -179,7 +191,7 @@ function send_mail(string $to_email, string $to_name, string $subject, string $b
         'from_name'  => get_setting('smtp_from_name'),
     ]);
 
-    $ok = $mailer->send($to_email, $to_name, $subject, $body, $html);
+    $ok = $mailer->send($to_email, $to_name, $subject, $body, $html, $cc);
 
     if (!$ok) {
         $_SESSION['_mail_error'] = $mailer->lastError();

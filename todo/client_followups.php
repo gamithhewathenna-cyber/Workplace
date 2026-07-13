@@ -33,6 +33,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect('client_followups.php');
     }
 
+    if ($action === 'remind') {
+        $clientId = (int)($_POST['client_id'] ?? 0);
+        $client = db()->prepare("SELECT id, name, email, contact_person FROM clients WHERE id=?");
+        $client->execute([$clientId]);
+        $client = $client->fetch();
+
+        if (!$client) {
+            flash('error', 'Client not found.');
+        } elseif (empty($client['email'])) {
+            flash('error', 'This client has no email on file — add one in Clients first.');
+        } else {
+            $pending = db()->prepare("SELECT title FROM client_followups WHERE client_id=? AND is_completed=0 ORDER BY created_at ASC");
+            $pending->execute([$clientId]);
+            $pending = $pending->fetchAll(PDO::FETCH_COLUMN);
+
+            if (!$pending) {
+                flash('error', 'No pending follow-ups for this client.');
+            } else {
+                $me = db()->prepare("SELECT name, email FROM employees WHERE id=?");
+                $me->execute([$eid]);
+                $me = $me->fetch();
+
+                $list = '<ul style="margin:0;padding-left:1.2rem;line-height:1.9;color:#e8e8e8">';
+                foreach ($pending as $title) {
+                    $list .= '<li>' . htmlspecialchars($title, ENT_QUOTES, 'UTF-8') . '</li>';
+                }
+                $list .= '</ul>';
+
+                $greetName = $client['contact_person'] ?: $client['name'];
+                $html = mail_template(
+                    'Pending Action Items',
+                    '<p>Hi ' . htmlspecialchars($greetName, ENT_QUOTES, 'UTF-8') . ',</p>'
+                    . '<p>Just a quick reminder of the items currently pending for <strong>' . htmlspecialchars($client['name'], ENT_QUOTES, 'UTF-8') . '</strong>:</p>'
+                    . $list
+                    . '<p style="margin-top:1.5rem">Let us know if you have any questions.</p>'
+                );
+
+                $cc = array_values(array_filter(['reach@creativelements.co', $me['email'] ?? '']));
+                $ok = send_mail($client['email'], $client['name'], 'Pending Action Items — ' . $client['name'], $html, true, $cc);
+
+                if ($ok) {
+                    flash('success', 'Reminder emailed to ' . $client['email'] . ' (CC\'d to reach@creativelements.co' . (!empty($me['email']) ? ' and you' : '') . ').');
+                } else {
+                    flash('error', 'Could not send reminder (' . (get_mail_error() ?: 'SMTP not configured') . ').');
+                }
+            }
+        }
+        redirect('client_followups.php');
+    }
+
     if ($action === 'delete') {
         $id = (int)($_POST['id'] ?? 0);
         $row = db()->prepare("SELECT created_by FROM client_followups WHERE id=?");
@@ -135,6 +185,13 @@ $error   = get_flash('error');
         <div class="progress-bar-wrap" style="margin-bottom:.65rem">
           <div class="progress-bar <?= $pct === 100 ? 'bar-green' : '' ?>" style="width:<?= $pct ?>%"></div>
         </div>
+        <?php if ($total > $done): ?>
+        <form method="post" style="margin-bottom:.65rem" onsubmit="return confirm('Email a reminder listing all pending items to <?= h(addslashes($c['name'])) ?>?')">
+          <input type="hidden" name="action" value="remind">
+          <input type="hidden" name="client_id" value="<?= $c['id'] ?>">
+          <button class="btn btn-xs btn-outline" style="width:100%"><i class="fa fa-paper-plane"></i> Send Reminder</button>
+        </form>
+        <?php endif; ?>
         <div style="max-height:220px;overflow-y:auto">
           <?php foreach ($cItems as $it): ?>
             <div class="chk-item-row" data-id="<?= $it['id'] ?>">
@@ -215,7 +272,7 @@ function toggleAllClients(cb) {
   document.querySelectorAll('.followup-client-chk input[type=checkbox]').forEach(function (c) { c.checked = cb.checked; });
 }
 
-<?php if ($error && strpos($error, 'client') !== false): ?>
+<?php if ($error && strpos($error, 'Enter a title') !== false): ?>
 document.addEventListener('DOMContentLoaded', () => openModal('add-followup-modal'));
 <?php endif; ?>
 </script>
