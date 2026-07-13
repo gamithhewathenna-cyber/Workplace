@@ -35,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'remind') {
         $clientId = (int)($_POST['client_id'] ?? 0);
-        $client = db()->prepare("SELECT id, name, email, contact_person FROM clients WHERE id=?");
+        $client = db()->prepare("SELECT id, name, email, contact_person, cc_emails FROM clients WHERE id=?");
         $client->execute([$clientId]);
         $client = $client->fetch();
 
@@ -70,15 +70,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     . '<p style="margin-top:1.5rem">Let us know if you have any questions.</p>'
                 );
 
-                $cc = array_values(array_filter([
+                $clientCcs = array_filter(array_map('trim', explode(',', $client['cc_emails'] ?? '')));
+                $cc = array_values(array_unique(array_filter(array_merge([
                     get_setting('client_cc_email_1', 'reach@creativelements.co'),
                     get_setting('client_cc_email_2'),
                     $me['email'] ?? '',
-                ]));
+                ], $clientCcs))));
                 $ok = send_mail($client['email'], $client['name'], 'Pending Action Items — ' . $client['name'], $html, true, $cc);
 
                 if ($ok) {
-                    $ccList = array_values(array_filter([get_setting('client_cc_email_1', 'reach@creativelements.co'), get_setting('client_cc_email_2')]));
+                    $ccList = array_values(array_unique(array_filter(array_merge([get_setting('client_cc_email_1', 'reach@creativelements.co'), get_setting('client_cc_email_2')], $clientCcs))));
                     flash('success', 'Reminder emailed to ' . $client['email'] . ' (CC\'d to ' . implode(', ', $ccList) . (!empty($me['email']) ? ' and you' : '') . ').');
                 } else {
                     flash('error', 'Could not send reminder (' . (get_mail_error() ?: 'SMTP not configured') . ').');

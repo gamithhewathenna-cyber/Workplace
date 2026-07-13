@@ -11,36 +11,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
     if ($action === 'add') {
-        $name    = trim($_POST['name'] ?? '');
-        $contact = trim($_POST['contact_person'] ?? '');
-        $email   = strtolower(trim($_POST['email'] ?? ''));
-        $phone   = trim($_POST['phone'] ?? '');
-        $website = trim($_POST['website'] ?? '');
-        $notes   = trim($_POST['notes'] ?? '');
+        $name      = trim($_POST['name'] ?? '');
+        $contact   = trim($_POST['contact_person'] ?? '');
+        $email     = strtolower(trim($_POST['email'] ?? ''));
+        $cc_emails = implode(', ', array_filter(array_map('trim', explode(',', $_POST['cc_emails'] ?? ''))));
+        $phone     = trim($_POST['phone'] ?? '');
+        $website   = trim($_POST['website'] ?? '');
+        $notes     = trim($_POST['notes'] ?? '');
 
         if (!$name) {
             $msg = 'Client name is required.'; $type = 'error';
         } else {
-            db()->prepare("INSERT INTO clients (name, contact_person, email, phone, website, notes, is_active) VALUES (?,?,?,?,?,?,1)")
-               ->execute([$name, $contact, $email, $phone, $website, $notes]);
+            db()->prepare("INSERT INTO clients (name, contact_person, email, cc_emails, phone, website, notes, is_active) VALUES (?,?,?,?,?,?,?,1)")
+               ->execute([$name, $contact, $email, $cc_emails, $phone, $website, $notes]);
             $msg = 'Client added successfully.'; $type = 'ok';
         }
     }
 
     if ($action === 'edit') {
-        $id      = (int)($_POST['id'] ?? 0);
-        $name    = trim($_POST['name'] ?? '');
-        $contact = trim($_POST['contact_person'] ?? '');
-        $email   = strtolower(trim($_POST['email'] ?? ''));
-        $phone   = trim($_POST['phone'] ?? '');
-        $website = trim($_POST['website'] ?? '');
-        $notes   = trim($_POST['notes'] ?? '');
+        $id        = (int)($_POST['id'] ?? 0);
+        $name      = trim($_POST['name'] ?? '');
+        $contact   = trim($_POST['contact_person'] ?? '');
+        $email     = strtolower(trim($_POST['email'] ?? ''));
+        $cc_emails = implode(', ', array_filter(array_map('trim', explode(',', $_POST['cc_emails'] ?? ''))));
+        $phone     = trim($_POST['phone'] ?? '');
+        $website   = trim($_POST['website'] ?? '');
+        $notes     = trim($_POST['notes'] ?? '');
 
         if (!$name || !$id) {
             $msg = 'Client name is required.'; $type = 'error';
         } else {
-            db()->prepare("UPDATE clients SET name=?, contact_person=?, email=?, phone=?, website=?, notes=? WHERE id=?")
-               ->execute([$name, $contact, $email, $phone, $website, $notes, $id]);
+            db()->prepare("UPDATE clients SET name=?, contact_person=?, email=?, cc_emails=?, phone=?, website=?, notes=? WHERE id=?")
+               ->execute([$name, $contact, $email, $cc_emails, $phone, $website, $notes, $id]);
             $msg = 'Client updated.'; $type = 'ok';
         }
     }
@@ -167,6 +169,9 @@ $active = count(array_filter($clients, fn($c) => $c['is_active']));
                 <?php if (!empty($c['email'])): ?>
                   <a href="mailto:<?= h($c['email']) ?>" style="color:#c084fc;text-decoration:none"><?= h($c['email']) ?></a>
                 <?php else: ?>—<?php endif; ?>
+                <?php if (!empty($c['cc_emails'])): ?>
+                  <div style="font-size:.71rem;color:rgba(240,240,240,.38)" title="<?= h($c['cc_emails']) ?>"><i class="fa fa-copy"></i> CC: <?= h($c['cc_emails']) ?></div>
+                <?php endif; ?>
               </td>
               <td><?= h($c['phone'] ?? '—') ?></td>
               <td>
@@ -233,6 +238,10 @@ $active = count(array_filter($clients, fn($c) => $c['is_active']));
           <label>Email</label>
           <input type="email" name="email" class="input" placeholder="contact@client.com">
         </div>
+        <div class="form-group span-2">
+          <label>CC Persons <small style="color:var(--clr-muted)">(comma-separated, optional)</small></label>
+          <input type="text" name="cc_emails" class="input" placeholder="e.g. finance@client.com, boss@client.com">
+        </div>
         <div class="form-group">
           <label>Phone</label>
           <input type="text" name="phone" class="input" placeholder="+94 77 000 0000">
@@ -277,6 +286,10 @@ $active = count(array_filter($clients, fn($c) => $c['is_active']));
           <label>Email</label>
           <input type="email" name="email" id="edit-email" class="input">
         </div>
+        <div class="form-group span-2">
+          <label>CC Persons <small style="color:var(--clr-muted)">(comma-separated, optional)</small></label>
+          <input type="text" name="cc_emails" id="edit-cc-emails" class="input" placeholder="e.g. finance@client.com, boss@client.com">
+        </div>
         <div class="form-group">
           <label>Phone</label>
           <input type="text" name="phone" id="edit-phone" class="input">
@@ -305,6 +318,7 @@ function openEditModal(c) {
   document.getElementById('edit-name').value    = c.name    || '';
   document.getElementById('edit-contact').value = c.contact_person || '';
   document.getElementById('edit-email').value   = c.email   || '';
+  document.getElementById('edit-cc-emails').value = c.cc_emails || '';
   document.getElementById('edit-phone').value   = c.phone   || '';
   document.getElementById('edit-website').value = c.website || '';
   document.getElementById('edit-notes').value   = c.notes   || '';
