@@ -35,62 +35,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'remind') {
         $clientId = (int)($_POST['client_id'] ?? 0);
-        $client = db()->prepare("SELECT id, name, email, contact_person, cc_emails FROM clients WHERE id=?");
+        $client = db()->prepare("SELECT email FROM clients WHERE id=?");
         $client->execute([$clientId]);
-        $client = $client->fetch();
+        $clientEmail = $client->fetchColumn();
 
-        if (!$client) {
+        $pendingCount = db()->prepare("SELECT COUNT(*) FROM client_followups WHERE client_id=? AND is_completed=0");
+        $pendingCount->execute([$clientId]);
+        $pendingCount = (int)$pendingCount->fetchColumn();
+
+        if ($clientEmail === false) {
             flash('error', 'Client not found.');
-        } elseif (empty($client['email'])) {
+        } elseif (empty($clientEmail)) {
             flash('error', 'This client has no email on file — add one in Clients first.');
+        } elseif (!$pendingCount) {
+            flash('error', 'No pending follow-ups for this client.');
         } else {
-            $pending = db()->prepare("SELECT title FROM client_followups WHERE client_id=? AND is_completed=0 ORDER BY created_at ASC");
-            $pending->execute([$clientId]);
-            $pending = $pending->fetchAll(PDO::FETCH_COLUMN);
+            $me = db()->prepare("SELECT email FROM employees WHERE id=?");
+            $me->execute([$eid]);
+            $meEmail = $me->fetchColumn() ?: '';
 
-            if (!$pending) {
-                flash('error', 'No pending follow-ups for this client.');
+            $ok = send_client_followup_reminder($clientId, array_filter([$meEmail]));
+            if ($ok) {
+                flash('success', 'Reminder emailed to ' . $clientEmail . ($meEmail ? ' (CC\'d to you and the configured addresses).' : ' (CC\'d to the configured addresses).'));
             } else {
-                $me = db()->prepare("SELECT name, email FROM employees WHERE id=?");
-                $me->execute([$eid]);
-                $me = $me->fetch();
-
-                $list = '<ul style="margin:0;padding-left:1.2rem;line-height:1.9;color:#e8e8e8">';
-                foreach ($pending as $title) {
-                    $list .= '<li>' . htmlspecialchars($title, ENT_QUOTES, 'UTF-8') . '</li>';
-                }
-                $list .= '</ul>';
-
-                $greetName  = $client['contact_person'] ?: $client['name'];
-                $token      = client_public_token($client['id']);
-                $host       = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost');
-                $publicLink = $host . '/client/followups.php?t=' . $token;
-
-                $html = mail_template(
-                    'Pending Action Items',
-                    '<p>Hi ' . htmlspecialchars($greetName, ENT_QUOTES, 'UTF-8') . ',</p>'
-                    . '<p>Just a quick reminder of the items currently pending for <strong>' . htmlspecialchars($client['name'], ENT_QUOTES, 'UTF-8') . '</strong>:</p>'
-                    . $list
-                    . '<p style="margin-top:1.5rem">You can view and check these off directly using the button below — no login needed.</p>'
-                    . '<p style="margin-top:1.5rem">Let us know if you have any questions.</p>',
-                    'View & Complete Your Items',
-                    $publicLink
-                );
-
-                $clientCcs = array_filter(array_map('trim', explode(',', $client['cc_emails'] ?? '')));
-                $cc = array_values(array_unique(array_filter(array_merge([
-                    get_setting('client_cc_email_1', 'reach@creativelements.co'),
-                    get_setting('client_cc_email_2'),
-                    $me['email'] ?? '',
-                ], $clientCcs))));
-                $ok = send_mail($client['email'], $client['name'], 'Pending Action Items — ' . $client['name'], $html, true, $cc);
-
-                if ($ok) {
-                    $ccList = array_values(array_unique(array_filter(array_merge([get_setting('client_cc_email_1', 'reach@creativelements.co'), get_setting('client_cc_email_2')], $clientCcs))));
-                    flash('success', 'Reminder emailed to ' . $client['email'] . ' (CC\'d to ' . implode(', ', $ccList) . (!empty($me['email']) ? ' and you' : '') . ').');
-                } else {
-                    flash('error', 'Could not send reminder (' . (get_mail_error() ?: 'SMTP not configured') . ').');
-                }
+                flash('error', 'Could not send reminder (' . (get_mail_error() ?: 'SMTP not configured') . ').');
             }
         }
         redirect('client_followups.php');

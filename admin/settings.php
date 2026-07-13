@@ -21,6 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         set_setting('company_email',   trim($_POST['company_email']   ?? ''));
         set_setting('company_phone',   trim($_POST['company_phone']   ?? ''));
         set_setting('company_address', trim($_POST['company_address'] ?? ''));
+        set_setting('site_url',        rtrim(trim($_POST['site_url']  ?? ''), '/'));
         $success = 'Company information updated.';
     }
 
@@ -165,6 +166,7 @@ $cfg = [
     'company_email'   => get_setting('company_email'),
     'company_phone'   => get_setting('company_phone'),
     'company_address' => get_setting('company_address'),
+    'site_url'        => get_setting('site_url'),
     'mail_from'       => get_setting('mail_from'),
     'company_logo'    => get_setting('company_logo'),
     'smtp_host'       => get_setting('smtp_host'),
@@ -316,6 +318,7 @@ $logo_url = $cfg['company_logo']
             <div class="fg"><label>Company Email</label><input type="email" name="company_email" value="<?= h($cfg['company_email']) ?>" placeholder="info@company.com"></div>
             <div class="fg"><label>Phone Number</label><input type="text" name="company_phone" value="<?= h($cfg['company_phone']) ?>" placeholder="+60 12-345 6789"></div>
             <div class="fg"><label>Address</label><textarea name="company_address" placeholder="Street, City, State, Country"><?= h($cfg['company_address']) ?></textarea></div>
+            <div class="fg"><label>Site URL <small style="color:var(--clr-muted)">(used in scheduled emails, e.g. client reminders)</small></label><input type="text" name="site_url" value="<?= h($cfg['site_url']) ?>" placeholder="https://portal.yourcompany.com"></div>
             <div class="save-row"><button class="btn btn-primary btn-sm" type="submit"><i class="fa fa-save"></i> Save</button></div>
           </form>
         </div>

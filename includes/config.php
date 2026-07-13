@@ -288,8 +288,91 @@ function client_public_token(int $clientId): string {
     return $token;
 }
 
+// ── Client Follow-up reminder email ─────────────────────────
+// Emails a client every one of their pending (unchecked) follow-up items
+// in one message, CC'd to the configured client-reminder addresses
+// (Settings), this client's own CC persons, and any extra CC passed in
+// (e.g. the employee who triggered it manually). Returns false if the
+// client has no email on file or has nothing pending — nothing is sent.
+function send_client_followup_reminder(int $clientId, array $extraCc = []): bool {
+    $client = db()->prepare("SELECT id, name, email, contact_person, cc_emails FROM clients WHERE id=?");
+    $client->execute([$clientId]);
+    $client = $client->fetch();
+    if (!$client || empty($client['email'])) return false;
+
+    $pending = db()->prepare("SELECT title FROM client_followups WHERE client_id=? AND is_completed=0 ORDER BY created_at ASC");
+    $pending->execute([$clientId]);
+    $pending = $pending->fetchAll(PDO::FETCH_COLUMN);
+    if (!$pending) return false;
+
+    $list = '<ul style="margin:0;padding-left:1.2rem;line-height:1.9;color:#e8e8e8">';
+    foreach ($pending as $title) {
+        $list .= '<li>' . htmlspecialchars($title, ENT_QUOTES, 'UTF-8') . '</li>';
+    }
+    $list .= '</ul>';
+
+    $greetName  = $client['contact_person'] ?: $client['name'];
+    $token      = client_public_token($client['id']);
+    $host       = isset($_SERVER['HTTP_HOST'])
+        ? (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST']
+        : rtrim(get_setting('site_url'), '/');
+    $publicLink = $host . '/client/followups.php?t=' . $token;
+
+    $html = mail_template(
+        'Pending Action Items',
+        '<p>Hi ' . htmlspecialchars($greetName, ENT_QUOTES, 'UTF-8') . ',</p>'
+        . '<p>Just a quick reminder of the items currently pending for <strong>' . htmlspecialchars($client['name'], ENT_QUOTES, 'UTF-8') . '</strong>:</p>'
+        . $list
+        . '<p style="margin-top:1.5rem">You can view and check these off directly using the button below — no login needed.</p>'
+        . '<p style="margin-top:1.5rem">Let us know if you have any questions.</p>',
+        'View & Complete Your Items',
+        $publicLink
+    );
+
+    $clientCcs = array_filter(array_map('trim', explode(',', $client['cc_emails'] ?? '')));
+    $cc = array_values(array_unique(array_filter(array_merge([
+        get_setting('client_cc_email_1', 'reach@creativelements.co'),
+        get_setting('client_cc_email_2'),
+    ], $clientCcs, $extraCc))));
+
+    return send_mail($client['email'], $client['name'], 'Pending Action Items — ' . $client['name'], $html, true, $cc);
+}
+
+// ── Client Follow-up reminder schedule ──────────────────────
+// Automatically emails every client that has pending follow-ups every
+// Monday and Thursday at/after 8:30 AM (once per day) — on top of the
+// manual "Send Reminder" button. Runs opportunistically on page load like
+// the other scheduled jobs; cron/client_followups_remind.php is the
+// belt-and-suspenders companion for reliability.
+function client_followups_maybe_remind(): void {
+    $now = new DateTime();
+    $dow = (int)$now->format('N'); // 1=Mon .. 7=Sun
+    if ($dow !== 1 && $dow !== 4) return; // Monday or Thursday only
+
+    $minutesNow = (int)$now->format('H') * 60 + (int)$now->format('i');
+    if ($minutesNow < (8 * 60 + 30)) return; // before 8:30 AM
+
+    $today = $now->format('Y-m-d');
+    if (get_setting('client_followups_last_reminder_date', '') === $today) return;
+    set_setting('client_followups_last_reminder_date', $today);
+
+    client_followups_run_reminders();
+}
+
+function client_followups_run_reminders(): int {
+    $clientIds = db()->query("SELECT DISTINCT client_id FROM client_followups WHERE is_completed = 0")
+        ->fetchAll(PDO::FETCH_COLUMN);
+
+    $sent = 0;
+    foreach ($clientIds as $cid) {
+        if (send_client_followup_reminder((int)$cid)) $sent++;
+    }
+    return $sent;
+}
+
 // Run login tracking on every page load if logged in
 if (current_employee_id()) {
     record_login();
     tasks_maybe_weekly_archive();
+    client_followups_maybe_remind();
 }
