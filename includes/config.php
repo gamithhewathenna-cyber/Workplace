@@ -272,6 +272,22 @@ function tasks_maybe_weekly_archive(): void {
     db()->exec("UPDATE tasks SET archived_at = NOW() WHERE status = 'completed' AND archived_at IS NULL");
 }
 
+// ── Client public follow-up link ────────────────────────────
+// A stable, unguessable token per client so the "Send Reminder" email
+// can link straight to a no-login public page showing just that
+// client's pending items — generated once, then reused forever.
+function client_public_token(int $clientId): string {
+    $st = db()->prepare("SELECT public_token FROM clients WHERE id=?");
+    $st->execute([$clientId]);
+    $token = $st->fetchColumn();
+
+    if ($token) return $token;
+
+    $token = bin2hex(random_bytes(24));
+    db()->prepare("UPDATE clients SET public_token=? WHERE id=?")->execute([$token, $clientId]);
+    return $token;
+}
+
 // Run login tracking on every page load if logged in
 if (current_employee_id()) {
     record_login();

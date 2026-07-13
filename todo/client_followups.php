@@ -61,13 +61,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 $list .= '</ul>';
 
-                $greetName = $client['contact_person'] ?: $client['name'];
+                $greetName  = $client['contact_person'] ?: $client['name'];
+                $token      = client_public_token($client['id']);
+                $host       = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost');
+                $publicLink = $host . '/client/followups.php?t=' . $token;
+
                 $html = mail_template(
                     'Pending Action Items',
                     '<p>Hi ' . htmlspecialchars($greetName, ENT_QUOTES, 'UTF-8') . ',</p>'
                     . '<p>Just a quick reminder of the items currently pending for <strong>' . htmlspecialchars($client['name'], ENT_QUOTES, 'UTF-8') . '</strong>:</p>'
                     . $list
-                    . '<p style="margin-top:1.5rem">Let us know if you have any questions.</p>'
+                    . '<p style="margin-top:1.5rem">You can view and check these off directly using the button below — no login needed.</p>'
+                    . '<p style="margin-top:1.5rem">Let us know if you have any questions.</p>',
+                    'View & Complete Your Items',
+                    $publicLink
                 );
 
                 $clientCcs = array_filter(array_map('trim', explode(',', $client['cc_emails'] ?? '')));
