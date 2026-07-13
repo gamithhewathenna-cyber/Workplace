@@ -70,11 +70,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     . '<p style="margin-top:1.5rem">Let us know if you have any questions.</p>'
                 );
 
-                $cc = array_values(array_filter(['reach@creativelements.co', $me['email'] ?? '']));
+                $cc = array_values(array_filter([
+                    get_setting('client_cc_email_1', 'reach@creativelements.co'),
+                    get_setting('client_cc_email_2'),
+                    $me['email'] ?? '',
+                ]));
                 $ok = send_mail($client['email'], $client['name'], 'Pending Action Items — ' . $client['name'], $html, true, $cc);
 
                 if ($ok) {
-                    flash('success', 'Reminder emailed to ' . $client['email'] . ' (CC\'d to reach@creativelements.co' . (!empty($me['email']) ? ' and you' : '') . ').');
+                    $ccList = array_values(array_filter([get_setting('client_cc_email_1', 'reach@creativelements.co'), get_setting('client_cc_email_2')]));
+                    flash('success', 'Reminder emailed to ' . $client['email'] . ' (CC\'d to ' . implode(', ', $ccList) . (!empty($me['email']) ? ' and you' : '') . ').');
                 } else {
                     flash('error', 'Could not send reminder (' . (get_mail_error() ?: 'SMTP not configured') . ').');
                 }
