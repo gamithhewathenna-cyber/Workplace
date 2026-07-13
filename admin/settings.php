@@ -39,6 +39,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $success = 'SMTP settings saved.';
     }
 
+    // Client Reminder CC Emails
+    if ($section === 'client_cc') {
+        set_setting('client_cc_email_1', trim($_POST['client_cc_email_1'] ?? ''));
+        set_setting('client_cc_email_2', trim($_POST['client_cc_email_2'] ?? ''));
+        $success = 'Client reminder CC emails updated.';
+    }
+
     // Send Test Email
     if ($section === 'smtp_test') {
         $to = trim($_POST['test_email'] ?? '');
@@ -166,6 +173,8 @@ $cfg = [
     'smtp_encryption' => get_setting('smtp_encryption', 'tls'),
     'smtp_from_email' => get_setting('smtp_from_email'),
     'smtp_from_name'  => get_setting('smtp_from_name'),
+    'client_cc_email_1' => get_setting('client_cc_email_1', 'reach@creativelements.co'),
+    'client_cc_email_2' => get_setting('client_cc_email_2'),
 ];
 
 $admin = db()->prepare("SELECT name, email FROM employees WHERE id=? LIMIT 1");
@@ -387,6 +396,20 @@ $logo_url = $cfg['company_logo']
             </div>
 
           </div>
+        </div>
+      </div>
+
+      <!-- Client Reminder CC Emails -->
+      <div class="s-card">
+        <div class="s-card-head"><i class="fa fa-envelope-circle-check"></i><h3>Client Reminder CC Emails</h3></div>
+        <div class="s-card-body">
+          <p style="font-size:.76rem;color:var(--clr-muted);margin-bottom:.9rem">These addresses are always CC'd when a "Send Reminder" email goes out from Client Follow-ups, in addition to the employee who sent it.</p>
+          <form method="post">
+            <input type="hidden" name="_section" value="client_cc">
+            <div class="fg"><label>CC Email 1</label><input type="email" name="client_cc_email_1" value="<?= h($cfg['client_cc_email_1']) ?>" placeholder="reach@creativelements.co"></div>
+            <div class="fg"><label>CC Email 2 <small style="color:var(--clr-muted)">(optional)</small></label><input type="email" name="client_cc_email_2" value="<?= h($cfg['client_cc_email_2']) ?>" placeholder="optional second address"></div>
+            <div class="save-row"><button class="btn btn-primary btn-sm" type="submit"><i class="fa fa-save"></i> Save</button></div>
+          </form>
         </div>
       </div>
 
