@@ -2,7 +2,6 @@
 require_once __DIR__ . '/../includes/config.php';
 require_login();
 if (!is_manager()) redirect('/todo/index.php');
-$isAdmin = ($_SESSION['role'] ?? '') === 'admin';
 
 // ── Summary stats ──────────────────────────────────────────
 $stat_employees = (int)db()->query("SELECT COUNT(*) FROM employees WHERE status='active'")->fetchColumn();
@@ -28,17 +27,6 @@ $live_sessions = db()->query("
 
 $today  = date('Y-m-d');
 $now_ts = time();
-
-// ── All Expenses (admin only) ──────────────────────────────
-$all_expenses = [];
-if ($isAdmin) {
-    $all_expenses = db()->query("
-        SELECT ex.*, e.name AS emp_name
-        FROM expenses ex
-        JOIN employees e ON e.id = ex.employee_id
-        ORDER BY ex.expense_date DESC, ex.created_at DESC
-    ")->fetchAll();
-}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -204,44 +192,6 @@ a.live-card:visited {
       </a>
       <?php endforeach; ?>
     </div>
-    <?php endif; ?>
-
-    <!-- All Expenses (admin only) -->
-    <?php if ($isAdmin): ?>
-    <div class="section-label" style="margin-top:1.75rem"><i class="fa fa-receipt" style="margin-right:.4rem"></i>Expenses</div>
-    <section class="section-card">
-      <div class="table-responsive">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Employee</th>
-              <th>Date</th>
-              <th>Amount</th>
-              <th>Description</th>
-              <th>Reference</th>
-            </tr>
-          </thead>
-          <tbody>
-            <?php foreach ($all_expenses as $e): ?>
-            <tr>
-              <td><?= h($e['emp_name']) ?></td>
-              <td><?= date('d M Y', strtotime($e['expense_date'])) ?></td>
-              <td>Rs. <?= number_format((float)$e['amount'], 2) ?></td>
-              <td><?= h($e['description']) ?></td>
-              <td>
-                <?php if ($e['receipt_path']): ?>
-                  <a href="/uploads/<?= h($e['receipt_path']) ?>" target="_blank" class="btn btn-xs btn-outline"><i class="fa fa-file-pdf"></i> View</a>
-                <?php else: ?>—<?php endif; ?>
-              </td>
-            </tr>
-            <?php endforeach; ?>
-            <?php if (!$all_expenses): ?>
-              <tr><td colspan="5" class="text-center text-muted" style="padding:2rem">No expenses logged yet.</td></tr>
-            <?php endif; ?>
-          </tbody>
-        </table>
-      </div>
-    </section>
     <?php endif; ?>
 
   </main>

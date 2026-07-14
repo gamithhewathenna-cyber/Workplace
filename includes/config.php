@@ -21,7 +21,6 @@ define('UPLOAD_DIR',        __DIR__ . '/../uploads/');
 define('UPLOAD_CERT_DIR',   __DIR__ . '/../uploads/certs/');
 define('UPLOAD_TASK_DIR',   __DIR__ . '/../uploads/tasks/');
 define('UPLOAD_CHAT_DIR',   __DIR__ . '/../uploads/chat/');
-define('UPLOAD_EXPENSE_DIR', __DIR__ . '/../uploads/expenses/');
 define('UPLOAD_URL',        '/uploads/');
 
 // ── Chat retention rules ───────────────────────────────────

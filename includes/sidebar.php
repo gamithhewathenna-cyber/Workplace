@@ -46,7 +46,6 @@ $emp_role = $_SESSION['role']     ?? 'employee';
   <a href="/admin/checklist.php"  class="sidebar-link <?= is_active('/admin/checklist') ?>"><i class="fa fa-list-check"></i> Checklist Setup</a>
   <a href="/admin/projects.php"   class="sidebar-link <?= is_active('/admin/projects') ?>"><i class="fa fa-project-diagram"></i> Manage Projects</a>
   <a href="/admin/attendance.php" class="sidebar-link <?= is_active('/admin/attendance') ?>"><i class="fa fa-user-clock"></i> Attendance</a>
-  <a href="/todo/expenses.php"    class="sidebar-link <?= is_active('/todo/expenses') ?>"><i class="fa fa-receipt"></i> Expenses</a>
   <a href="/leave/admin.php"      class="sidebar-link <?= is_active('/leave/admin') ?>"><i class="fa fa-user-shield"></i> Leave Approvals</a>
   <a href="/leave/holidays.php"   class="sidebar-link <?= is_active('/leave/holidays') ?>"><i class="fa fa-calendar-plus"></i> Holidays</a>
   <a href="/admin/reports.php"    class="sidebar-link <?= is_active('/admin/reports') ?>"><i class="fa fa-chart-bar"></i> Reports</a>
