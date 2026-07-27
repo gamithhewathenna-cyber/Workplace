@@ -85,9 +85,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $allClients = db()->query("SELECT id, name FROM clients WHERE is_active = 1 ORDER BY name ASC")->fetchAll();
 
 $items = db()->query("
-    SELECT cf.id, cf.client_id, cf.title, cf.is_completed, cf.created_by, e.name AS creator_name
+    SELECT cf.id, cf.client_id, cf.title, cf.is_completed, cf.completed_at, cf.completed_by,
+           cf.created_by, e.name AS creator_name, ce.name AS completer_name
     FROM client_followups cf
     JOIN employees e ON e.id = cf.created_by
+    LEFT JOIN employees ce ON ce.id = cf.completed_by
     ORDER BY cf.is_completed ASC, cf.created_at ASC
 ")->fetchAll();
 
@@ -179,7 +181,16 @@ $error   = get_flash('error');
               <button type="button" class="chk-toggle" onclick="toggleFollowup(<?= $it['id'] ?>)" style="background:none;border:none;cursor:pointer;color:inherit;padding:0">
                 <i class="fa <?= $it['is_completed'] ? 'fa-check-circle' : 'fa-circle' ?>" style="color:<?= $it['is_completed'] ? '#4ade80' : 'var(--clr-muted)' ?>"></i>
               </button>
-              <span class="chk-title" style="<?= $it['is_completed'] ? 'text-decoration:line-through;color:var(--clr-muted)' : '' ?>" title="Added by <?= h($it['creator_name']) ?>"><?= h($it['title']) ?></span>
+              <div class="chk-title" style="min-width:0">
+                <div style="<?= $it['is_completed'] ? 'text-decoration:line-through;color:var(--clr-muted)' : '' ?>" title="Added by <?= h($it['creator_name']) ?>"><?= h($it['title']) ?></div>
+                <?php if ($it['is_completed'] && $it['completed_at']): ?>
+                  <div style="font-size:.7rem;color:var(--clr-muted);margin-top:.1rem">
+                    <i class="fa fa-check" style="color:#4ade80"></i>
+                    <?= date('d M Y, h:i A', strtotime($it['completed_at'])) ?>
+                    &middot; <?= $it['completer_name'] ? 'by ' . h($it['completer_name']) : 'by the client' ?>
+                  </div>
+                <?php endif; ?>
+              </div>
               <?php if ((int)$it['created_by'] === $eid || $isAdmin): ?>
                 <form method="post" style="display:inline" onsubmit="return confirm('Remove this follow-up?')">
                   <input type="hidden" name="action" value="delete">
