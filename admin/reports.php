@@ -28,27 +28,35 @@ $employees = db()->query("SELECT id, name FROM employees WHERE status='active' O
 // Counts finished sessions as stored, and also credits sessions still
 // running/paused today using their live elapsed time — otherwise anyone
 // who hasn't clicked "Finish" yet on their current task shows 0.
+// Run per-employee (like the working-days/leave lookups elsewhere) rather
+// than a single GROUP BY query, to keep the aggregation simple and correct.
 $curMonthStart = date('Y-m-01');
 $curMonthEnd   = date('Y-m-t');
-$monthlyHours = db()->prepare("
-    SELECT e.id, e.name, e.position,
-           ROUND(COALESCE(SUM(
-               GREATEST(0, CASE
-                   WHEN tt.status = 'finished' THEN tt.total_seconds - tt.break_seconds
-                   WHEN tt.status = 'running'  THEN TIMESTAMPDIFF(SECOND, tt.started_at, NOW()) - tt.break_seconds
-                   WHEN tt.status = 'paused'   THEN TIMESTAMPDIFF(SECOND, tt.started_at, tt.paused_at) - tt.break_seconds
-                   ELSE 0
-               END)
-           ), 0) / 3600, 1) AS working_hours
-    FROM employees e
-    LEFT JOIN time_tracking tt ON tt.employee_id = e.id
-           AND DATE(tt.started_at) BETWEEN ? AND ?
-    WHERE e.status = 'active'
-    GROUP BY e.id, e.name, e.position
-    ORDER BY e.name ASC
+
+$hoursEmployees = db()->query("SELECT id, name, position FROM employees WHERE status='active' ORDER BY name ASC")->fetchAll();
+
+$hoursStmt = db()->prepare("
+    SELECT ROUND(COALESCE(SUM(
+        CASE
+            WHEN status = 'finished' THEN total_seconds - break_seconds
+            WHEN status = 'running'  THEN GREATEST(0, TIMESTAMPDIFF(SECOND, started_at, NOW()) - break_seconds)
+            WHEN status = 'paused'   THEN GREATEST(0, TIMESTAMPDIFF(SECOND, started_at, paused_at) - break_seconds)
+            ELSE 0
+        END
+    ), 0) / 3600, 1)
+    FROM time_tracking
+    WHERE employee_id = ? AND DATE(started_at) BETWEEN ? AND ?
 ");
-$monthlyHours->execute([$curMonthStart, $curMonthEnd]);
-$monthlyHours = $monthlyHours->fetchAll();
+
+$monthlyHours = [];
+foreach ($hoursEmployees as $he) {
+    $hoursStmt->execute([$he['id'], $curMonthStart, $curMonthEnd]);
+    $monthlyHours[] = [
+        'name'          => $he['name'],
+        'position'      => $he['position'],
+        'working_hours' => (float)$hoursStmt->fetchColumn(),
+    ];
+}
 
 // ── Attendance Report ──────────────────────────────────────
 if ($report === 'attendance') {
