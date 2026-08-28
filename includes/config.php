@@ -174,6 +174,33 @@ function working_days(string $start, string $end): float {
     return (float)$days;
 }
 
+// Approved leave days an employee has within [start,end], counted the same
+// way working_days() counts them (weekdays only, public holidays excluded)
+// so it can be subtracted from a working-days denominator — an employee on
+// approved leave shouldn't be counted as absent.
+function employee_leave_days(int $eid, string $start, string $end): float {
+    $st = db()->prepare("
+        SELECT start_date, end_date, is_half_day
+        FROM leave_requests
+        WHERE employee_id = ? AND status = 'approved'
+          AND start_date <= ? AND end_date >= ?
+    ");
+    $st->execute([$eid, $end, $start]);
+    $rows = $st->fetchAll();
+
+    $days = 0.0;
+    foreach ($rows as $r) {
+        if ($r['is_half_day']) {
+            if ($r['start_date'] >= $start && $r['start_date'] <= $end) $days += 0.5;
+            continue;
+        }
+        $overlapStart = max($r['start_date'], $start);
+        $overlapEnd   = min($r['end_date'], $end);
+        if ($overlapStart <= $overlapEnd) $days += working_days($overlapStart, $overlapEnd);
+    }
+    return $days;
+}
+
 function add_notification(int $userId, string $type, string $title, string $message, string $link = ''): void {
     $st = db()->prepare("INSERT INTO notifications (user_id,type,title,message,link) VALUES (?,?,?,?,?)");
     $st->execute([$userId, $type, $title, $message, $link]);
@@ -462,6 +489,7 @@ function build_time_report_email(int $eid, string $monthStart): string {
     $loginRows = $logins->fetchAll();
 
     $workingDays = working_days($monthStart, $monthEnd);
+    $workingDays = max(0, $workingDays - employee_leave_days($eid, $monthStart, $monthEnd));
     $present     = count($loginRows);
     $onTime      = count(array_filter($loginRows, fn($r) => $r['status'] === 'on_time'));
     $late        = count(array_filter($loginRows, fn($r) => $r['status'] === 'late'));

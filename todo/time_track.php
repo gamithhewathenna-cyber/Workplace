@@ -32,11 +32,17 @@ $myLogins = db()->prepare("
 $myLogins->execute([$eid, $month_start, $month_end]);
 $myLoginRows = $myLogins->fetchAll();
 
+// Calendar working days (Mon-Fri, public holidays excluded) — the base
+// figure shown for the team as a whole. Each person's own denominator then
+// also subtracts their approved leave days, so being on leave isn't counted
+// against their attendance.
 $working_days_elapsed = working_days($month_start, $period_end);
+$my_leave_days        = employee_leave_days($eid, $month_start, $period_end);
+$my_working_days      = max(0, $working_days_elapsed - $my_leave_days);
 $my_present_days      = count($myLoginRows);
 $my_on_time_days      = count(array_filter($myLoginRows, fn($r) => $r['status'] === 'on_time'));
 $my_late_days         = count(array_filter($myLoginRows, fn($r) => $r['status'] === 'late'));
-$my_attendance_pct    = $working_days_elapsed > 0 ? round($my_present_days / $working_days_elapsed * 100) : 0;
+$my_attendance_pct    = $my_working_days > 0 ? round($my_present_days / $my_working_days * 100) : 0;
 
 // ── All employees' monthly attendance (managers only) ───────
 $teamAttendance = [];
@@ -103,7 +109,7 @@ $total_hours = array_sum(array_column($timeLogs, 'hours'));
     <section class="section-card">
       <div class="section-header">
         <h2><i class="fa fa-calendar-check"></i> My Login Time — <?= date('F Y', strtotime($month_start)) ?></h2>
-        <span class="badge <?= $my_attendance_pct >= 90 ? 'badge-success' : 'badge-warning' ?>"><?= $my_present_days ?>/<?= (int)$working_days_elapsed ?> working days (<?= $my_attendance_pct ?>%)</span>
+        <span class="badge <?= $my_attendance_pct >= 90 ? 'badge-success' : 'badge-warning' ?>"><?= $my_present_days ?>/<?= (int)$my_working_days ?> working days (<?= $my_attendance_pct ?>%)</span>
       </div>
       <div class="cards-row" style="margin-bottom:1.25rem">
         <div class="card">
@@ -166,7 +172,8 @@ $total_hours = array_sum(array_column($timeLogs, 'hours'));
           <thead><tr><th>Employee</th><th>Present Days</th><th>On Time</th><th>Late</th><th>Attendance</th></tr></thead>
           <tbody>
             <?php foreach ($teamAttendance as $ta):
-                $ta_pct = $working_days_elapsed > 0 ? round($ta['present_days'] / $working_days_elapsed * 100) : 0;
+                $ta_working_days = max(0, $working_days_elapsed - employee_leave_days((int)$ta['id'], $month_start, $period_end));
+                $ta_pct = $ta_working_days > 0 ? round($ta['present_days'] / $ta_working_days * 100) : 0;
             ?>
             <tr>
               <td><?= h($ta['name']) ?></td>
