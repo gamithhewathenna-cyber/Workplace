@@ -8,22 +8,31 @@ require_login();
 
 $eid     = current_employee_id();
 $is_mgr  = is_manager();
-$month_start = date('Y-m-01');
-$today       = date('Y-m-d');
+
+// ── Selected month (defaults to current, can't go past current) ─
+$current_month = date('Y-m');
+$sel_month = $_GET['month'] ?? $current_month;
+if (!preg_match('/^\d{4}-\d{2}$/', $sel_month) || $sel_month > $current_month) {
+    $sel_month = $current_month;
+}
+$month_start   = $sel_month . '-01';
+$month_end     = date('Y-m-t', strtotime($month_start));
+$is_cur_month  = $sel_month === $current_month;
+$period_end    = $is_cur_month ? date('Y-m-d') : $month_end;
 
 // ── My monthly login time (Mon–Fri only) ────────────────────
 $myLogins = db()->prepare("
     SELECT login_date, first_login, status, minutes_late
     FROM emp_login_log
     WHERE employee_id = ?
-      AND login_date >= ?
+      AND login_date BETWEEN ? AND ?
       AND DAYOFWEEK(login_date) BETWEEN 2 AND 6
     ORDER BY login_date DESC
 ");
-$myLogins->execute([$eid, $month_start]);
+$myLogins->execute([$eid, $month_start, $month_end]);
 $myLoginRows = $myLogins->fetchAll();
 
-$working_days_elapsed = working_days($month_start, $today);
+$working_days_elapsed = working_days($month_start, $period_end);
 $my_present_days      = count($myLoginRows);
 $my_on_time_days      = count(array_filter($myLoginRows, fn($r) => $r['status'] === 'on_time'));
 $my_late_days         = count(array_filter($myLoginRows, fn($r) => $r['status'] === 'late'));
@@ -39,17 +48,17 @@ if ($is_mgr) {
                SUM(el.status = 'late') AS late_days
         FROM employees e
         LEFT JOIN emp_login_log el ON el.employee_id = e.id
-               AND el.login_date >= ?
+               AND el.login_date BETWEEN ? AND ?
                AND DAYOFWEEK(el.login_date) BETWEEN 2 AND 6
         WHERE e.status = 'active'
         GROUP BY e.id, e.name, e.position
         ORDER BY e.name ASC
     ");
-    $teamAttendance->execute([$month_start]);
+    $teamAttendance->execute([$month_start, $month_end]);
     $teamAttendance = $teamAttendance->fetchAll();
 }
 
-// Time log history (this month)
+// Time log history (selected month)
 $logs = db()->prepare("
     SELECT tt.*, t.title AS task_title, c.name AS client_name,
            ROUND(tt.total_seconds/3600, 2) AS hours,
@@ -57,11 +66,10 @@ $logs = db()->prepare("
     FROM time_tracking tt
     JOIN tasks t ON t.id=tt.task_id
     LEFT JOIN clients c ON c.id=t.client_id
-    WHERE tt.employee_id=? AND tt.status='finished' AND DATE(tt.started_at) >= DATE_FORMAT(NOW(),'%Y-%m-01')
+    WHERE tt.employee_id=? AND tt.status='finished' AND DATE(tt.started_at) BETWEEN ? AND ?
     ORDER BY tt.started_at DESC
-    LIMIT 50
 ");
-$logs->execute([$eid]);
+$logs->execute([$eid, $month_start, $month_end]);
 $timeLogs = $logs->fetchAll();
 
 $total_hours = array_sum(array_column($timeLogs, 'hours'));
@@ -81,13 +89,20 @@ $total_hours = array_sum(array_column($timeLogs, 'hours'));
   <main class="portal-main">
     <div class="page-header">
       <h1 class="page-title"><i class="fa fa-clock"></i> Monthly Time</h1>
-      <span class="badge badge-info"><?= round($total_hours, 1) ?> hrs logged this month</span>
+      <form method="get" class="filter-bar" style="margin:0">
+        <input type="month" name="month" class="input" value="<?= h($sel_month) ?>" max="<?= h($current_month) ?>">
+        <button type="submit" class="btn btn-outline"><i class="fa fa-search"></i> View</button>
+        <?php if (!$is_cur_month): ?>
+          <a href="/todo/time_track.php" class="btn btn-outline">Current Month</a>
+        <?php endif; ?>
+      </form>
+      <span class="badge badge-info"><?= round($total_hours, 1) ?> hrs logged in <?= date('F Y', strtotime($month_start)) ?></span>
     </div>
 
     <!-- My Monthly Login Time -->
     <section class="section-card">
       <div class="section-header">
-        <h2><i class="fa fa-calendar-check"></i> My Login Time — <?= date('F Y') ?></h2>
+        <h2><i class="fa fa-calendar-check"></i> My Login Time — <?= date('F Y', strtotime($month_start)) ?></h2>
         <span class="badge <?= $my_attendance_pct >= 90 ? 'badge-success' : 'badge-warning' ?>"><?= $my_present_days ?>/<?= (int)$working_days_elapsed ?> working days (<?= $my_attendance_pct ?>%)</span>
       </div>
       <div class="cards-row" style="margin-bottom:1.25rem">
@@ -143,8 +158,8 @@ $total_hours = array_sum(array_column($timeLogs, 'hours'));
     <!-- All Employees' Monthly Attendance -->
     <section class="section-card">
       <div class="section-header">
-        <h2><i class="fa fa-users"></i> All Employees — Monthly Attendance</h2>
-        <span class="badge badge-info"><?= (int)$working_days_elapsed ?> working days so far this month</span>
+        <h2><i class="fa fa-users"></i> All Employees — <?= date('F Y', strtotime($month_start)) ?> Attendance</h2>
+        <span class="badge badge-info"><?= (int)$working_days_elapsed ?> working days <?= $is_cur_month ? 'so far this month' : 'that month' ?></span>
       </div>
       <div class="table-responsive">
         <table class="data-table">
@@ -178,7 +193,7 @@ $total_hours = array_sum(array_column($timeLogs, 'hours'));
     <!-- Time Log -->
     <section class="section-card">
       <div class="section-header">
-        <h2><i class="fa fa-list-alt"></i> This Month's Time Log</h2>
+        <h2><i class="fa fa-list-alt"></i> <?= date('F Y', strtotime($month_start)) ?> Time Log</h2>
       </div>
       <div class="table-responsive">
         <table class="data-table">
