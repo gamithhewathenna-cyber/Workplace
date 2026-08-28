@@ -24,6 +24,22 @@ if (($_GET['export'] ?? '') === 'csv') {
 
 $employees = db()->query("SELECT id, name FROM employees WHERE status='active' ORDER BY name")->fetchAll();
 
+// ── This month's total working hours per employee ───────────
+$curMonthStart = date('Y-m-01');
+$curMonthEnd   = date('Y-m-t');
+$monthlyHours = db()->prepare("
+    SELECT e.id, e.name, e.position,
+           ROUND(COALESCE(SUM(tt.total_seconds - tt.break_seconds), 0) / 3600, 1) AS working_hours
+    FROM employees e
+    LEFT JOIN time_tracking tt ON tt.employee_id = e.id AND tt.status = 'finished'
+           AND DATE(tt.started_at) BETWEEN ? AND ?
+    WHERE e.status = 'active'
+    GROUP BY e.id, e.name, e.position
+    ORDER BY e.name ASC
+");
+$monthlyHours->execute([$curMonthStart, $curMonthEnd]);
+$monthlyHours = $monthlyHours->fetchAll();
+
 // ── Attendance Report ──────────────────────────────────────
 if ($report === 'attendance') {
     $where = $emp_id ? "AND el.employee_id = $emp_id" : '';
@@ -99,6 +115,40 @@ if (isset($out)) {
 <title>Reports – Employee Portal</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <link rel="stylesheet" href="/assets/css/portal.css">
+<style>
+.hours-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.75rem;
+}
+.hours-card {
+  background: var(--clr-surface);
+  border: 1px solid rgba(0,0,0,.04);
+  border-radius: 18px;
+  padding: 1.25rem;
+  box-shadow: var(--shadow);
+  display: flex;
+  align-items: center;
+  gap: .9rem;
+  transition: var(--transition);
+}
+.hours-card:hover { box-shadow: var(--shadow-lg); transform: translateY(-2px); }
+.hours-avatar {
+  width: 46px; height: 46px;
+  border-radius: 50%;
+  background: var(--clr-primary-light);
+  color: var(--clr-primary);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 1rem;
+  flex-shrink: 0;
+}
+.hours-name { font-weight: 600; color: var(--clr-text); font-size: .92rem; }
+.hours-pos  { font-size: .74rem; color: var(--clr-muted); margin-top: .1rem; }
+.hours-value { margin-left: auto; text-align: right; }
+.hours-value .num { font-size: 1.3rem; font-weight: 700; color: var(--clr-primary); line-height: 1; }
+.hours-value .lbl { font-size: .68rem; color: var(--clr-muted); text-transform: uppercase; letter-spacing: .04em; margin-top: .2rem; }
+</style>
 </head>
 <body>
 <?php include __DIR__ . '/../includes/navbar.php'; ?>
@@ -114,6 +164,34 @@ if (isset($out)) {
         <button onclick="window.print()" class="btn btn-ghost"><i class="fa fa-print"></i> Print</button>
       </div>
     </div>
+
+    <!-- This Month's Working Hours -->
+    <section class="section-card">
+      <div class="section-header">
+        <h2><i class="fa fa-hourglass-half"></i> Working Hours — <?= date('F Y') ?></h2>
+        <span class="badge badge-info"><?= count($monthlyHours) ?> employees</span>
+      </div>
+      <div class="hours-grid">
+        <?php foreach ($monthlyHours as $mh):
+            $initials = strtoupper(substr($mh['name'], 0, 1));
+        ?>
+        <div class="hours-card">
+          <div class="hours-avatar"><?= h($initials) ?></div>
+          <div>
+            <div class="hours-name"><?= h($mh['name']) ?></div>
+            <div class="hours-pos"><?= h($mh['position'] ?? '') ?></div>
+          </div>
+          <div class="hours-value">
+            <div class="num"><?= $mh['working_hours'] ?>h</div>
+            <div class="lbl">Working Hours</div>
+          </div>
+        </div>
+        <?php endforeach; ?>
+        <?php if (!$monthlyHours): ?>
+          <p class="text-center text-muted" style="grid-column:1/-1">No active employees.</p>
+        <?php endif; ?>
+      </div>
+    </section>
 
     <!-- Report Tabs -->
     <div style="display:flex; gap:.5rem; margin-bottom:1.5rem; flex-wrap:wrap">
