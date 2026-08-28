@@ -25,13 +25,23 @@ if (($_GET['export'] ?? '') === 'csv') {
 $employees = db()->query("SELECT id, name FROM employees WHERE status='active' ORDER BY name")->fetchAll();
 
 // ── This month's total working hours per employee ───────────
+// Counts finished sessions as stored, and also credits sessions still
+// running/paused today using their live elapsed time — otherwise anyone
+// who hasn't clicked "Finish" yet on their current task shows 0.
 $curMonthStart = date('Y-m-01');
 $curMonthEnd   = date('Y-m-t');
 $monthlyHours = db()->prepare("
     SELECT e.id, e.name, e.position,
-           ROUND(COALESCE(SUM(tt.total_seconds - tt.break_seconds), 0) / 3600, 1) AS working_hours
+           ROUND(COALESCE(SUM(
+               GREATEST(0, CASE
+                   WHEN tt.status = 'finished' THEN tt.total_seconds - tt.break_seconds
+                   WHEN tt.status = 'running'  THEN TIMESTAMPDIFF(SECOND, tt.started_at, NOW()) - tt.break_seconds
+                   WHEN tt.status = 'paused'   THEN TIMESTAMPDIFF(SECOND, tt.started_at, tt.paused_at) - tt.break_seconds
+                   ELSE 0
+               END)
+           ), 0) / 3600, 1) AS working_hours
     FROM employees e
-    LEFT JOIN time_tracking tt ON tt.employee_id = e.id AND tt.status = 'finished'
+    LEFT JOIN time_tracking tt ON tt.employee_id = e.id
            AND DATE(tt.started_at) BETWEEN ? AND ?
     WHERE e.status = 'active'
     GROUP BY e.id, e.name, e.position
