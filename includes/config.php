@@ -60,6 +60,12 @@ function is_manager(): bool {
     return isset($_SESSION['role']) && in_array($_SESSION['role'], ['manager','admin','hr'], true);
 }
 
+// Detects phones/tablets via User-Agent. Used to restrict mobile login to admins only.
+function is_mobile_device(): bool {
+    $ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
+    return (bool)preg_match('/Mobi|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i', $ua);
+}
+
 // Managers can always assign tasks; a regular employee can too if the
 // admin has specifically granted them the can_assign_tasks permission.
 function can_assign_tasks(): bool {

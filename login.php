@@ -20,20 +20,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $emp = $st->fetch();
 
             if ($emp && password_verify($password, $emp['password'])) {
-                // Regenerate session ID to prevent fixation
-                session_regenerate_id(true);
+                if ($emp['role'] !== 'admin' && is_mobile_device()) {
+                    $error = 'Mobile login is restricted. Please log in from your laptop or desktop to access the workplace.';
+                } else {
+                    // Regenerate session ID to prevent fixation
+                    session_regenerate_id(true);
 
-                $_SESSION['employee_id']     = $emp['id'];
-                $_SESSION['role']            = $emp['role'];
-                $_SESSION['emp_name']        = $emp['name'];
-                $_SESSION['can_assign_tasks'] = (bool)$emp['can_assign_tasks'];
+                    $_SESSION['employee_id']     = $emp['id'];
+                    $_SESSION['role']            = $emp['role'];
+                    $_SESSION['emp_name']        = $emp['name'];
+                    $_SESSION['can_assign_tasks'] = (bool)$emp['can_assign_tasks'];
 
-                $next = filter_var($_GET['next'] ?? '/todo/index.php', FILTER_SANITIZE_URL);
-                if (!$next || strpos($next, '/') !== 0) {
-                    $next = '/todo/index.php';
+                    $next = filter_var($_GET['next'] ?? '/todo/index.php', FILTER_SANITIZE_URL);
+                    if (!$next || strpos($next, '/') !== 0) {
+                        $next = '/todo/index.php';
+                    }
+                    header('Location: ' . $next);
+                    exit;
                 }
-                header('Location: ' . $next);
-                exit;
             } else {
                 $error = 'Incorrect email or password.';
             }
