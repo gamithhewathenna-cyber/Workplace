@@ -31,6 +31,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $_SESSION['emp_name']        = $emp['name'];
                     $_SESSION['can_assign_tasks'] = (bool)$emp['can_assign_tasks'];
 
+                    // If they were auto-logged-out (or went away) earlier today,
+                    // resume: keep today's accumulated active/away totals rather
+                    // than starting the work timer over from zero.
+                    $today = date('Y-m-d');
+                    $existing = db()->prepare("SELECT id, presence_status FROM emp_login_log WHERE employee_id=? AND login_date=?");
+                    $existing->execute([$emp['id'], $today]);
+                    $existingRow = $existing->fetch();
+                    if ($existingRow && $existingRow['presence_status'] !== 'active') {
+                        db()->prepare("UPDATE emp_login_log SET presence_status='active', last_activity_at=NOW(), last_heartbeat_at=NOW() WHERE id=?")
+                           ->execute([$existingRow['id']]);
+                    }
+
                     $next = filter_var($_GET['next'] ?? '/todo/index.php', FILTER_SANITIZE_URL);
                     if (!$next || strpos($next, '/') !== 0) {
                         $next = '/todo/index.php';
@@ -99,6 +111,18 @@ body {
   background: rgba(231,76,60,.15);
   border: 1px solid rgba(231,76,60,.3);
   color: #ff6b6b;
+  border-radius: 10px;
+  padding: .7rem .9rem;
+  font-size: .82rem;
+  margin-bottom: 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+.alert-info {
+  background: rgba(125,69,154,.15);
+  border: 1px solid rgba(125,69,154,.3);
+  color: #c084fc;
   border-radius: 10px;
   padding: .7rem .9rem;
   font-size: .82rem;
@@ -194,6 +218,8 @@ body {
 
     <?php if ($error): ?>
       <div class="alert-err"><i class="fa fa-exclamation-circle"></i> <?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></div>
+    <?php elseif (!empty($_GET['msg'])): ?>
+      <div class="alert-info"><i class="fa fa-circle-info"></i> <?= htmlspecialchars($_GET['msg'], ENT_QUOTES, 'UTF-8') ?></div>
     <?php endif; ?>
 
     <form method="post" novalidate>

@@ -77,11 +77,58 @@ function require_login(): void {
         header('Location: /login.php');
         exit;
     }
+    enforce_activity_timeout();
+}
+
+function is_api_request(): bool {
+    return strpos($_SERVER['SCRIPT_NAME'] ?? '', '/api/') !== false;
+}
+
+// Force-expires sessions that have been idle past auto_logout_after_minutes,
+// even if no heartbeat ever reported it (e.g. laptop slept, tab reopened later).
+// Relies on last_activity_at, which is reconstructed from the client's
+// self-reported idle time on every heartbeat, so it reflects real user
+// activity rather than just "when did we last hear from this browser".
+function enforce_activity_timeout(): void {
+    $eid = current_employee_id();
+    if (!$eid) return;
+
+    $today = date('Y-m-d');
+    $st = db()->prepare("SELECT presence_status, last_activity_at FROM emp_login_log WHERE employee_id=? AND login_date=?");
+    $st->execute([$eid, $today]);
+    $row = $st->fetch();
+    if (!$row || !$row['last_activity_at']) return;
+
+    $logoutMinutes = (int)get_setting('auto_logout_after_minutes', '45');
+    $idleSeconds   = time() - strtotime($row['last_activity_at']);
+
+    if ($row['presence_status'] !== 'logged_out' && $idleSeconds < $logoutMinutes * 60) return;
+
+    if ($row['presence_status'] !== 'logged_out') {
+        db()->prepare("UPDATE emp_login_log SET presence_status='logged_out', logout_at=NOW(), logout_reason='Inactive / Auto Logout' WHERE employee_id=? AND login_date=?")
+           ->execute([$eid, $today]);
+    }
+
+    $_SESSION = [];
+    session_destroy();
+
+    if (is_api_request()) {
+        json_response(['ok' => false, 'logged_out' => true, 'error' => 'Session expired due to inactivity'], 401);
+    }
+    header('Location: /login.php?msg=' . urlencode('You were logged out due to inactivity. Please sign in again.'));
+    exit;
 }
 
 // ── Utility ───────────────────────────────────────────────
 function h(string $s): string {
     return htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
+}
+
+function fmt_hm(int $seconds): string {
+    $seconds = max(0, $seconds);
+    $h = intdiv($seconds, 3600);
+    $m = intdiv($seconds % 3600, 60);
+    return $h . 'h ' . $m . 'm';
 }
 
 function json_response(array $data, int $code = 200): void {
@@ -146,9 +193,9 @@ function record_login(): void {
     $status      = $diff > 0 ? 'late' : 'on_time';
     $minutes_late = max(0, $diff);
 
-    $ins = db()->prepare("INSERT INTO emp_login_log (employee_id,login_date,first_login,status,minutes_late)
-                          VALUES (?,?,?,?,?)");
-    $ins->execute([$eid, $today, $now, $status, $minutes_late]);
+    $ins = db()->prepare("INSERT INTO emp_login_log (employee_id,login_date,first_login,status,minutes_late,last_activity_at,last_heartbeat_at)
+                          VALUES (?,?,?,?,?,?,?)");
+    $ins->execute([$eid, $today, $now, $status, $minutes_late, $now, $now]);
 
     if ($status === 'late') {
         add_notification($eid, 'late_login', 'Late Login', "You logged in $minutes_late minutes late today.", '/todo/index.php');

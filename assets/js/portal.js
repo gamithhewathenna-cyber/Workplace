@@ -115,6 +115,38 @@ if (menuToggle && sidebar) {
   menuToggle.addEventListener('click', () => sidebar.classList.toggle('open'));
 }
 
+// ── Presence / Activity Heartbeat ───────────────────────────
+// Reports idle time every minute so the server can mark Active → Away
+// (15 min idle) → Auto Logout (30-60 min idle, see admin Settings).
+(function () {
+  if (!document.querySelector('.portal-navbar')) return;
+
+  let lastInteraction = Date.now();
+  const markActive = () => { lastInteraction = Date.now(); };
+  ['mousemove', 'keydown', 'scroll', 'click', 'touchstart'].forEach(evt => {
+    document.addEventListener(evt, markActive, { passive: true });
+  });
+
+  function sendHeartbeat() {
+    const idleSeconds = Math.floor((Date.now() - lastInteraction) / 1000);
+    fetch('/api/activity.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idle_seconds: idleSeconds })
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data && data.logged_out) {
+          window.location.href = '/login.php?msg=' + encodeURIComponent('You were logged out due to inactivity. Please sign in again.');
+        }
+      })
+      .catch(() => {});
+  }
+
+  sendHeartbeat();
+  setInterval(sendHeartbeat, 60000);
+})();
+
 // ── Export helpers ─────────────────────────────────────────
 function exportTable(tableId, filename) {
   const rows = [];

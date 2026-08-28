@@ -27,6 +27,19 @@ $live_sessions = db()->query("
 
 $today  = date('Y-m-d');
 $now_ts = time();
+
+// ── Today's presence / activity for every employee ──────────
+$target_hours = (float)get_setting('daily_target_hours', '6');
+$presence = db()->query("
+    SELECT e.id, e.name, e.position,
+           el.first_login, el.last_activity_at,
+           el.active_seconds, el.away_seconds, el.presence_status,
+           el.logout_reason
+    FROM employees e
+    LEFT JOIN emp_login_log el ON el.employee_id = e.id AND el.login_date = CURDATE()
+    WHERE e.status = 'active'
+    ORDER BY (el.first_login IS NULL) ASC, e.name ASC
+")->fetchAll();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -116,6 +129,15 @@ a.live-card:visited {
 .pri-high     { background: #f97316; }
 .pri-medium   { background: #eab308; }
 .pri-low      { background: #6b7280; }
+
+/* ── Live Activity table ── */
+.presence-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: .4rem; }
+.presence-active      { background: #4ade80; }
+.presence-away        { background: #eab308; }
+.presence-logged_out  { background: #6b7280; }
+.presence-offline     { background: #3f3f46; }
+.presence-label { font-size: .78rem; font-weight: 600; }
+.progress-cell { display: flex; align-items: center; gap: .5rem; white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -194,6 +216,59 @@ a.live-card:visited {
     </div>
     <?php endif; ?>
 
+    <!-- Today's Presence / Activity -->
+    <section class="section-card">
+      <div class="section-header">
+        <h2><i class="fa fa-signal"></i> Today's Activity</h2>
+        <span class="badge badge-info">Target <?= rtrim(rtrim(number_format($target_hours, 1), '0'), '.') ?>h/day · auto-refreshes every minute</span>
+      </div>
+      <div class="table-responsive">
+        <table class="data-table">
+          <thead><tr><th>Employee</th><th>First Login</th><th>Last Activity</th><th>Active</th><th>Away</th><th>Progress</th><th>Status</th></tr></thead>
+          <tbody>
+            <?php foreach ($presence as $p):
+                $active_seconds = (int)($p['active_seconds'] ?? 0);
+                $away_seconds   = (int)($p['away_seconds'] ?? 0);
+                $target_seconds = $target_hours * 3600;
+                $pct = $target_seconds > 0 ? min(100, round($active_seconds / $target_seconds * 100)) : 0;
+                $status = $p['first_login'] ? ($p['presence_status'] ?? 'active') : 'offline';
+                $status_label = [
+                    'active'      => 'Active',
+                    'away'        => 'Away',
+                    'logged_out'  => 'Logged Out',
+                    'offline'     => 'Not Logged In',
+                ][$status] ?? ucfirst($status);
+            ?>
+            <tr>
+              <td><?= h($p['name']) ?><div class="live-emp-pos"><?= h($p['position'] ?? '') ?></div></td>
+              <td><?= $p['first_login'] ? date('h:i A', strtotime($p['first_login'])) : '—' ?></td>
+              <td><?= $p['last_activity_at'] ? date('h:i A', strtotime($p['last_activity_at'])) : '—' ?></td>
+              <td><?= fmt_hm($active_seconds) ?></td>
+              <td><?= fmt_hm($away_seconds) ?></td>
+              <td>
+                <div class="progress-cell">
+                  <div class="progress-bar-wrap" style="width:90px">
+                    <div class="progress-bar <?= $pct >= 100 ? 'bar-green' : '' ?>" style="width:<?= $pct ?>%"></div>
+                  </div>
+                  <span><?= fmt_hm($active_seconds) ?> / <?= rtrim(rtrim(number_format($target_hours, 1), '0'), '.') ?>h</span>
+                </div>
+              </td>
+              <td>
+                <span class="presence-dot presence-<?= $status ?>"></span><span class="presence-label"><?= $status_label ?></span>
+                <?php if ($status === 'logged_out' && $p['logout_reason']): ?>
+                  <div class="live-emp-pos"><?= h($p['logout_reason']) ?></div>
+                <?php endif; ?>
+              </td>
+            </tr>
+            <?php endforeach; ?>
+            <?php if (!$presence): ?>
+              <tr><td colspan="7" class="text-center text-muted">No active employees.</td></tr>
+            <?php endif; ?>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
   </main>
 </div>
 
@@ -221,6 +296,9 @@ function tickTimers() {
 
 setInterval(tickTimers, 1000);
 tickTimers();
+
+// ── Keep the Today's Activity table fresh ───────────────────
+setInterval(function () { location.reload(); }, 60000);
 </script>
 
 <script src="/assets/js/portal.js"></script>

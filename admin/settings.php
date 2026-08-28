@@ -135,6 +135,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    // Activity & Attendance Rules
+    if ($section === 'activity') {
+        $target = (float)($_POST['daily_target_hours'] ?? 6);
+        $away   = (int)($_POST['away_after_minutes'] ?? 15);
+        $logout = (int)($_POST['auto_logout_after_minutes'] ?? 45);
+
+        if ($target <= 0 || $target > 24) {
+            $error = 'Daily target must be between 0 and 24 hours.';
+        } elseif ($away < 1 || $away > 120) {
+            $error = 'Away threshold must be between 1 and 120 minutes.';
+        } elseif ($logout < 30 || $logout > 60) {
+            $error = 'Auto logout must be between 30 and 60 minutes.';
+        } else {
+            set_setting('daily_target_hours', (string)$target);
+            set_setting('away_after_minutes', (string)$away);
+            set_setting('auto_logout_after_minutes', (string)$logout);
+            $success = 'Activity & attendance rules updated.';
+        }
+    }
+
     // Password Change
     if ($section === 'password') {
         $cur  = $_POST['current_password'] ?? '';
@@ -177,6 +197,9 @@ $cfg = [
     'smtp_from_name'  => get_setting('smtp_from_name'),
     'client_cc_email_1' => get_setting('client_cc_email_1', 'reach@creativelements.co'),
     'client_cc_email_2' => get_setting('client_cc_email_2'),
+    'daily_target_hours'        => get_setting('daily_target_hours', '6'),
+    'away_after_minutes'        => get_setting('away_after_minutes', '15'),
+    'auto_logout_after_minutes' => get_setting('auto_logout_after_minutes', '45'),
 ];
 
 $admin = db()->prepare("SELECT name, email FROM employees WHERE id=? LIMIT 1");
@@ -411,6 +434,21 @@ $logo_url = $cfg['company_logo']
             <input type="hidden" name="_section" value="client_cc">
             <div class="fg"><label>CC Email 1</label><input type="email" name="client_cc_email_1" value="<?= h($cfg['client_cc_email_1']) ?>" placeholder="reach@creativelements.co"></div>
             <div class="fg"><label>CC Email 2 <small style="color:var(--clr-muted)">(optional)</small></label><input type="email" name="client_cc_email_2" value="<?= h($cfg['client_cc_email_2']) ?>" placeholder="optional second address"></div>
+            <div class="save-row"><button class="btn btn-primary btn-sm" type="submit"><i class="fa fa-save"></i> Save</button></div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Activity & Attendance Rules -->
+      <div class="s-card">
+        <div class="s-card-head"><i class="fa fa-signal"></i><h3>Activity &amp; Attendance Rules</h3></div>
+        <div class="s-card-body">
+          <p style="font-size:.76rem;color:var(--clr-muted);margin-bottom:.9rem">Controls the Active → Away → Auto Logout presence flow and the daily hours target shown on the Team Overview dashboard.</p>
+          <form method="post">
+            <input type="hidden" name="_section" value="activity">
+            <div class="fg"><label>Daily Target (hours)</label><input type="number" name="daily_target_hours" value="<?= h($cfg['daily_target_hours']) ?>" min="1" max="24" step="0.5" required></div>
+            <div class="fg"><label>Mark "Away" After (minutes idle)</label><input type="number" name="away_after_minutes" value="<?= h($cfg['away_after_minutes']) ?>" min="1" max="120" required></div>
+            <div class="fg"><label>Auto Logout After (minutes idle) <small style="color:var(--clr-muted)">(30–60)</small></label><input type="number" name="auto_logout_after_minutes" value="<?= h($cfg['auto_logout_after_minutes']) ?>" min="30" max="60" required></div>
             <div class="save-row"><button class="btn btn-primary btn-sm" type="submit"><i class="fa fa-save"></i> Save</button></div>
           </form>
         </div>
