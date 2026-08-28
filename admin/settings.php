@@ -47,6 +47,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $success = 'Client reminder CC emails updated.';
     }
 
+    // Monthly Time Report Email
+    if ($section === 'time_report') {
+        set_setting('time_report_cc_email', trim($_POST['time_report_cc_email'] ?? ''));
+        $success = 'Monthly time report settings updated.';
+    }
+
+    // Send Monthly Time Reports Now (previous month)
+    if ($section === 'time_report_send_now') {
+        $prevMonthStart = date('Y-m-01', strtotime('first day of last month'));
+        $sent = time_reports_run_send($prevMonthStart);
+        $success = 'Sent ' . $sent . ' time report(s) for ' . date('F Y', strtotime($prevMonthStart)) . '.';
+    }
+
     // Send Test Email
     if ($section === 'smtp_test') {
         $to = trim($_POST['test_email'] ?? '');
@@ -197,6 +210,7 @@ $cfg = [
     'smtp_from_name'  => get_setting('smtp_from_name'),
     'client_cc_email_1' => get_setting('client_cc_email_1', 'reach@creativelements.co'),
     'client_cc_email_2' => get_setting('client_cc_email_2'),
+    'time_report_cc_email' => get_setting('time_report_cc_email'),
     'daily_target_hours'        => get_setting('daily_target_hours', '6'),
     'away_after_minutes'        => get_setting('away_after_minutes', '15'),
     'auto_logout_after_minutes' => get_setting('auto_logout_after_minutes', '45'),
@@ -435,6 +449,23 @@ $logo_url = $cfg['company_logo']
             <div class="fg"><label>CC Email 1</label><input type="email" name="client_cc_email_1" value="<?= h($cfg['client_cc_email_1']) ?>" placeholder="reach@creativelements.co"></div>
             <div class="fg"><label>CC Email 2 <small style="color:var(--clr-muted)">(optional)</small></label><input type="email" name="client_cc_email_2" value="<?= h($cfg['client_cc_email_2']) ?>" placeholder="optional second address"></div>
             <div class="save-row"><button class="btn btn-primary btn-sm" type="submit"><i class="fa fa-save"></i> Save</button></div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Monthly Time Report Email -->
+      <div class="s-card">
+        <div class="s-card-head"><i class="fa fa-clock"></i><h3>Monthly Time Report Email</h3></div>
+        <div class="s-card-body">
+          <p style="font-size:.76rem;color:var(--clr-muted);margin-bottom:.9rem">On the 1st of each month, every active employee is automatically emailed their previous month's time report (login times + time log), CC'd to the address below — or every admin if left blank.</p>
+          <form method="post" style="margin-bottom:1.25rem">
+            <input type="hidden" name="_section" value="time_report">
+            <div class="fg"><label>Admin CC Email <small style="color:var(--clr-muted)">(optional, comma-separated)</small></label><input type="email" name="time_report_cc_email" value="<?= h($cfg['time_report_cc_email']) ?>" placeholder="defaults to every admin's email"></div>
+            <div class="save-row"><button class="btn btn-primary btn-sm" type="submit"><i class="fa fa-save"></i> Save</button></div>
+          </form>
+          <form method="post" onsubmit="return confirm('Email every active employee their time report for last month now?')">
+            <input type="hidden" name="_section" value="time_report_send_now">
+            <button class="btn btn-outline btn-sm" type="submit"><i class="fa fa-paper-plane"></i> Send Now for <?= date('F Y', strtotime('first day of last month')) ?></button>
           </form>
         </div>
       </div>

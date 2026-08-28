@@ -434,9 +434,141 @@ function client_followups_run_reminders(): int {
     return $sent;
 }
 
+// ── Monthly Time Report email ────────────────────────────────
+// Addresses CC'd on every employee's monthly time report: an explicit
+// Settings override if set, otherwise every active admin's email.
+function time_report_cc_emails(): array {
+    $configured = trim(get_setting('time_report_cc_email', ''));
+    if ($configured) {
+        return array_filter(array_map('trim', explode(',', $configured)));
+    }
+    return db()->query("SELECT email FROM employees WHERE role='admin' AND status='active'")->fetchAll(PDO::FETCH_COLUMN);
+}
+
+// Builds the HTML body for one employee's monthly time report: their
+// login/attendance record plus their finished time-tracking log, for the
+// given calendar month (Y-m-01 start).
+function build_time_report_email(int $eid, string $monthStart): string {
+    $monthEnd = date('Y-m-t', strtotime($monthStart));
+
+    $logins = db()->prepare("
+        SELECT login_date, first_login, status, minutes_late
+        FROM emp_login_log
+        WHERE employee_id = ? AND login_date BETWEEN ? AND ?
+          AND DAYOFWEEK(login_date) BETWEEN 2 AND 6
+        ORDER BY login_date ASC
+    ");
+    $logins->execute([$eid, $monthStart, $monthEnd]);
+    $loginRows = $logins->fetchAll();
+
+    $workingDays = working_days($monthStart, $monthEnd);
+    $present     = count($loginRows);
+    $onTime      = count(array_filter($loginRows, fn($r) => $r['status'] === 'on_time'));
+    $late        = count(array_filter($loginRows, fn($r) => $r['status'] === 'late'));
+
+    $logs = db()->prepare("
+        SELECT tt.started_at, t.title AS task_title, c.name AS client_name,
+               ROUND(tt.total_seconds/3600, 2) AS hours,
+               ROUND(tt.break_seconds/3600, 2) AS break_hours
+        FROM time_tracking tt
+        JOIN tasks t ON t.id = tt.task_id
+        LEFT JOIN clients c ON c.id = t.client_id
+        WHERE tt.employee_id = ? AND tt.status = 'finished' AND DATE(tt.started_at) BETWEEN ? AND ?
+        ORDER BY tt.started_at ASC
+    ");
+    $logs->execute([$eid, $monthStart, $monthEnd]);
+    $timeLogs   = $logs->fetchAll();
+    $totalHours = array_sum(array_column($timeLogs, 'hours'));
+
+    $td = 'style="padding:.4rem .6rem;border-bottom:1px solid #222;font-size:.82rem;color:#d0d0d0"';
+    $th = 'style="padding:.4rem .6rem;border-bottom:1px solid #333;font-size:.72rem;color:#888;text-align:left;text-transform:uppercase;letter-spacing:.04em"';
+
+    $loginRowsHtml = '';
+    foreach ($loginRows as $r) {
+        $statusHtml = $r['status'] === 'on_time'
+            ? '<span style="color:#4ade80">On Time</span>'
+            : '<span style="color:#eab308">Late by ' . (int)$r['minutes_late'] . ' min</span>';
+        $loginRowsHtml .= '<tr>'
+            . '<td ' . $td . '>' . date('d M Y', strtotime($r['login_date'])) . '</td>'
+            . '<td ' . $td . '>' . date('h:i A', strtotime($r['first_login'])) . '</td>'
+            . '<td ' . $td . '>' . $statusHtml . '</td>'
+            . '</tr>';
+    }
+    if (!$loginRowsHtml) $loginRowsHtml = '<tr><td colspan="3" ' . $td . '>No login records this month.</td></tr>';
+
+    $logRowsHtml = '';
+    foreach ($timeLogs as $log) {
+        $logRowsHtml .= '<tr>'
+            . '<td ' . $td . '>' . htmlspecialchars($log['task_title'], ENT_QUOTES, 'UTF-8') . ($log['client_name'] ? ' <span style="color:#666">(' . htmlspecialchars($log['client_name'], ENT_QUOTES, 'UTF-8') . ')</span>' : '') . '</td>'
+            . '<td ' . $td . '>' . date('d M Y', strtotime($log['started_at'])) . '</td>'
+            . '<td ' . $td . '>' . $log['hours'] . 'h</td>'
+            . '</tr>';
+    }
+    if (!$logRowsHtml) $logRowsHtml = '<tr><td colspan="3" ' . $td . '>No time logged this month.</td></tr>';
+
+    $summary = '<p>Here is your time report for <strong>' . date('F Y', strtotime($monthStart)) . '</strong>.</p>'
+        . '<p style="margin:1rem 0">'
+        . '<strong style="color:#fff">' . $present . '/' . (int)$workingDays . '</strong> working days present &nbsp;·&nbsp; '
+        . '<strong style="color:#4ade80">' . $onTime . '</strong> on time &nbsp;·&nbsp; '
+        . '<strong style="color:#eab308">' . $late . '</strong> late &nbsp;·&nbsp; '
+        . '<strong style="color:#fff">' . round($totalHours, 1) . 'h</strong> total logged'
+        . '</p>'
+        . '<h3 style="font-size:.85rem;color:#c084fc;margin:1.5rem 0 .5rem">Login Time</h3>'
+        . '<table width="100%" cellpadding="0" cellspacing="0"><thead><tr>'
+        . '<th ' . $th . '>Date</th><th ' . $th . '>Login Time</th><th ' . $th . '>Status</th>'
+        . '</tr></thead><tbody>' . $loginRowsHtml . '</tbody></table>'
+        . '<h3 style="font-size:.85rem;color:#c084fc;margin:1.5rem 0 .5rem">Time Log</h3>'
+        . '<table width="100%" cellpadding="0" cellspacing="0"><thead><tr>'
+        . '<th ' . $th . '>Task</th><th ' . $th . '>Date</th><th ' . $th . '>Hours</th>'
+        . '</tr></thead><tbody>' . $logRowsHtml . '</tbody></table>';
+
+    return mail_template('Monthly Time Report — ' . date('F Y', strtotime($monthStart)), $summary);
+}
+
+// Emails one employee their monthly time report, CC'd to the admin(s).
+// Returns false if the employee has no email on file.
+function send_monthly_time_report(int $eid, string $monthStart): bool {
+    $emp = db()->prepare("SELECT name, email FROM employees WHERE id=?");
+    $emp->execute([$eid]);
+    $emp = $emp->fetch();
+    if (!$emp || !$emp['email']) return false;
+
+    $html = build_time_report_email($eid, $monthStart);
+    $subject = 'Your Time Report — ' . date('F Y', strtotime($monthStart));
+
+    return send_mail($emp['email'], $emp['name'], $subject, $html, true, time_report_cc_emails());
+}
+
+function time_reports_run_send(string $monthStart): int {
+    $employees = db()->query("SELECT id FROM employees WHERE status='active'")->fetchAll(PDO::FETCH_COLUMN);
+    $sent = 0;
+    foreach ($employees as $eid) {
+        if (send_monthly_time_report((int)$eid, $monthStart)) $sent++;
+    }
+    return $sent;
+}
+
+// Automatically emails every active employee their previous month's time
+// report (CC'd to the admin) on the 1st of each month at/after 9 AM, once
+// per month. Runs opportunistically on page load like the other scheduled
+// jobs; cron/time_reports_send.php is the belt-and-suspenders companion
+// for reliability.
+function time_reports_maybe_send(): void {
+    $now = new DateTime();
+    if ((int)$now->format('j') !== 1) return; // only on the 1st of the month
+    if ((int)$now->format('H') < 9) return;    // at/after 9 AM
+
+    $prevMonthStart = date('Y-m-01', strtotime('first day of last month'));
+    if (get_setting('time_reports_last_sent_month', '') === $prevMonthStart) return;
+    set_setting('time_reports_last_sent_month', $prevMonthStart);
+
+    time_reports_run_send($prevMonthStart);
+}
+
 // Run login tracking on every page load if logged in
 if (current_employee_id()) {
     record_login();
     tasks_maybe_weekly_archive();
     client_followups_maybe_remind();
+    time_reports_maybe_send();
 }
