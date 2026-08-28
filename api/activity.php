@@ -10,9 +10,14 @@ $idleSeconds = max(0, (int)($data['idle_seconds'] ?? 0));
 $eid         = current_employee_id();
 $today       = date('Y-m-d');
 
-$st = db()->prepare("SELECT id, last_heartbeat_at FROM emp_login_log WHERE employee_id=? AND login_date=?");
-$st->execute([$eid, $today]);
-$row = $st->fetch();
+try {
+    $st = db()->prepare("SELECT id, last_heartbeat_at FROM emp_login_log WHERE employee_id=? AND login_date=?");
+    $st->execute([$eid, $today]);
+    $row = $st->fetch();
+} catch (PDOException $e) {
+    // sql/activity_tracking.sql migration not applied yet
+    json_response(['ok' => false, 'error' => 'Activity tracking not configured'], 200);
+}
 if (!$row) {
     json_response(['ok' => false, 'error' => 'No login record for today'], 404);
 }

@@ -34,13 +34,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     // If they were auto-logged-out (or went away) earlier today,
                     // resume: keep today's accumulated active/away totals rather
                     // than starting the work timer over from zero.
-                    $today = date('Y-m-d');
-                    $existing = db()->prepare("SELECT id, presence_status FROM emp_login_log WHERE employee_id=? AND login_date=?");
-                    $existing->execute([$emp['id'], $today]);
-                    $existingRow = $existing->fetch();
-                    if ($existingRow && $existingRow['presence_status'] !== 'active') {
-                        db()->prepare("UPDATE emp_login_log SET presence_status='active', last_activity_at=NOW(), last_heartbeat_at=NOW() WHERE id=?")
-                           ->execute([$existingRow['id']]);
+                    try {
+                        $today = date('Y-m-d');
+                        $existing = db()->prepare("SELECT id, presence_status FROM emp_login_log WHERE employee_id=? AND login_date=?");
+                        $existing->execute([$emp['id'], $today]);
+                        $existingRow = $existing->fetch();
+                        if ($existingRow && $existingRow['presence_status'] !== 'active') {
+                            db()->prepare("UPDATE emp_login_log SET presence_status='active', last_activity_at=NOW(), last_heartbeat_at=NOW() WHERE id=?")
+                               ->execute([$existingRow['id']]);
+                        }
+                    } catch (PDOException $e) {
+                        // sql/activity_tracking.sql migration not applied yet — skip resume, login still proceeds
                     }
 
                     $next = filter_var($_GET['next'] ?? '/todo/index.php', FILTER_SANITIZE_URL);

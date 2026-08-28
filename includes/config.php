@@ -94,9 +94,13 @@ function enforce_activity_timeout(): void {
     if (!$eid) return;
 
     $today = date('Y-m-d');
-    $st = db()->prepare("SELECT presence_status, last_activity_at FROM emp_login_log WHERE employee_id=? AND login_date=?");
-    $st->execute([$eid, $today]);
-    $row = $st->fetch();
+    try {
+        $st = db()->prepare("SELECT presence_status, last_activity_at FROM emp_login_log WHERE employee_id=? AND login_date=?");
+        $st->execute([$eid, $today]);
+        $row = $st->fetch();
+    } catch (PDOException $e) {
+        return; // sql/activity_tracking.sql migration not applied yet
+    }
     if (!$row || !$row['last_activity_at']) return;
 
     $logoutMinutes = (int)get_setting('auto_logout_after_minutes', '45');
@@ -193,9 +197,16 @@ function record_login(): void {
     $status      = $diff > 0 ? 'late' : 'on_time';
     $minutes_late = max(0, $diff);
 
-    $ins = db()->prepare("INSERT INTO emp_login_log (employee_id,login_date,first_login,status,minutes_late,last_activity_at,last_heartbeat_at)
-                          VALUES (?,?,?,?,?,?,?)");
-    $ins->execute([$eid, $today, $now, $status, $minutes_late, $now, $now]);
+    try {
+        $ins = db()->prepare("INSERT INTO emp_login_log (employee_id,login_date,first_login,status,minutes_late,last_activity_at,last_heartbeat_at)
+                              VALUES (?,?,?,?,?,?,?)");
+        $ins->execute([$eid, $today, $now, $status, $minutes_late, $now, $now]);
+    } catch (PDOException $e) {
+        // sql/activity_tracking.sql migration not applied yet — fall back to the base columns
+        $ins = db()->prepare("INSERT INTO emp_login_log (employee_id,login_date,first_login,status,minutes_late)
+                              VALUES (?,?,?,?,?)");
+        $ins->execute([$eid, $today, $now, $status, $minutes_late]);
+    }
 
     if ($status === 'late') {
         add_notification($eid, 'late_login', 'Late Login', "You logged in $minutes_late minutes late today.", '/todo/index.php');

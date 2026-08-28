@@ -30,16 +30,21 @@ $now_ts = time();
 
 // ── Today's presence / activity for every employee ──────────
 $target_hours = (float)get_setting('daily_target_hours', '6');
-$presence = db()->query("
-    SELECT e.id, e.name, e.position,
-           el.first_login, el.last_activity_at,
-           el.active_seconds, el.away_seconds, el.presence_status,
-           el.logout_reason
-    FROM employees e
-    LEFT JOIN emp_login_log el ON el.employee_id = e.id AND el.login_date = CURDATE()
-    WHERE e.status = 'active'
-    ORDER BY (el.first_login IS NULL) ASC, e.name ASC
-")->fetchAll();
+try {
+    $presence = db()->query("
+        SELECT e.id, e.name, e.position,
+               el.first_login, el.last_activity_at,
+               el.active_seconds, el.away_seconds, el.presence_status,
+               el.logout_reason
+        FROM employees e
+        LEFT JOIN emp_login_log el ON el.employee_id = e.id AND el.login_date = CURDATE()
+        WHERE e.status = 'active'
+        ORDER BY (el.first_login IS NULL) ASC, e.name ASC
+    ")->fetchAll();
+} catch (PDOException $e) {
+    // sql/activity_tracking.sql migration not applied yet
+    $presence = [];
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
