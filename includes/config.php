@@ -46,6 +46,17 @@ function db(): PDO {
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_EMULATE_PREPARES   => false,
         ]);
+        // Align MySQL's NOW()/CURTIME() with PHP's Asia/Colombo timezone —
+        // shared hosts often default the DB server to UTC, and a mismatch
+        // here silently corrupts any code comparing a NOW()-written
+        // timestamp against PHP's time() (e.g. the activity auto-logout
+        // check), making sessions look hours idle the instant they're set.
+        try {
+            $pdo->exec("SET time_zone = '+05:30'");
+        } catch (PDOException $e) {
+            // DB user may lack privilege — non-fatal, just means any
+            // remaining NOW()-based writes could drift from PHP's clock.
+        }
     }
     return $pdo;
 }
@@ -109,8 +120,8 @@ function enforce_activity_timeout(): void {
     if ($row['presence_status'] !== 'logged_out' && $idleSeconds < $logoutMinutes * 60) return;
 
     if ($row['presence_status'] !== 'logged_out') {
-        db()->prepare("UPDATE emp_login_log SET presence_status='logged_out', logout_at=NOW(), logout_reason='Inactive / Auto Logout' WHERE employee_id=? AND login_date=?")
-           ->execute([$eid, $today]);
+        db()->prepare("UPDATE emp_login_log SET presence_status='logged_out', logout_at=?, logout_reason='Inactive / Auto Logout' WHERE employee_id=? AND login_date=?")
+           ->execute([date('Y-m-d H:i:s'), $eid, $today]);
     }
 
     $_SESSION = [];

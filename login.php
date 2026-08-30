@@ -40,8 +40,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $existing->execute([$emp['id'], $today]);
                         $existingRow = $existing->fetch();
                         if ($existingRow && $existingRow['presence_status'] !== 'active') {
-                            db()->prepare("UPDATE emp_login_log SET presence_status='active', last_activity_at=NOW(), last_heartbeat_at=NOW() WHERE id=?")
-                               ->execute([$existingRow['id']]);
+                            $resumeNow = date('Y-m-d H:i:s');
+                            db()->prepare("UPDATE emp_login_log SET presence_status='active', last_activity_at=?, last_heartbeat_at=? WHERE id=?")
+                               ->execute([$resumeNow, $resumeNow, $existingRow['id']]);
                         }
                     } catch (PDOException $e) {
                         // sql/activity_tracking.sql migration not applied yet — skip resume, login still proceeds

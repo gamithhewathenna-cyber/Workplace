@@ -25,6 +25,12 @@ if (!$row) {
 $awaySeconds   = (int)get_setting('away_after_minutes', '15') * 60;
 $logoutSeconds = (int)get_setting('auto_logout_after_minutes', '45') * 60;
 
+// Everything below is written using PHP's own clock (not MySQL's NOW()) so
+// it stays consistent with how enforce_activity_timeout() reads it back via
+// PHP's strtotime() — mixing the two risks a DB-server timezone mismatch
+// (e.g. UTC vs Asia/Colombo) making a just-written timestamp look hours old.
+$nowStr = date('Y-m-d H:i:s');
+
 // Reconstruct the real moment of last activity from the client's self-report,
 // rather than just "when did we last hear from this browser".
 $lastActivityAt = date('Y-m-d H:i:s', time() - $idleSeconds);
@@ -37,10 +43,10 @@ $elapsed = $row['last_heartbeat_at']
 
 if ($idleSeconds >= $logoutSeconds) {
     db()->prepare("UPDATE emp_login_log
-                   SET presence_status='logged_out', last_activity_at=?, last_heartbeat_at=NOW(),
-                       logout_at=NOW(), logout_reason='Inactive / Auto Logout'
+                   SET presence_status='logged_out', last_activity_at=?, last_heartbeat_at=?,
+                       logout_at=?, logout_reason='Inactive / Auto Logout'
                    WHERE id=?")
-       ->execute([$lastActivityAt, $row['id']]);
+       ->execute([$lastActivityAt, $nowStr, $nowStr, $row['id']]);
 
     $_SESSION = [];
     session_destroy();
@@ -49,14 +55,14 @@ if ($idleSeconds >= $logoutSeconds) {
 
 if ($idleSeconds >= $awaySeconds) {
     db()->prepare("UPDATE emp_login_log
-                   SET presence_status='away', away_seconds=away_seconds+?, last_activity_at=?, last_heartbeat_at=NOW()
+                   SET presence_status='away', away_seconds=away_seconds+?, last_activity_at=?, last_heartbeat_at=?
                    WHERE id=?")
-       ->execute([$elapsed, $lastActivityAt, $row['id']]);
+       ->execute([$elapsed, $lastActivityAt, $nowStr, $row['id']]);
 } else {
     db()->prepare("UPDATE emp_login_log
-                   SET presence_status='active', active_seconds=active_seconds+?, last_activity_at=?, last_heartbeat_at=NOW()
+                   SET presence_status='active', active_seconds=active_seconds+?, last_activity_at=?, last_heartbeat_at=?
                    WHERE id=?")
-       ->execute([$elapsed, $lastActivityAt, $row['id']]);
+       ->execute([$elapsed, $lastActivityAt, $nowStr, $row['id']]);
 }
 
 json_response(['ok' => true, 'logged_out' => false]);
