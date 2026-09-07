@@ -28,6 +28,32 @@ $loginLog = db()->prepare("SELECT * FROM emp_login_log WHERE employee_id=? AND l
 $loginLog->execute([$eid, $today]);
 $loginInfo = $loginLog->fetch();
 
+// ── My working hours: daily / weekly / monthly ──────────────
+// Sums active_seconds from emp_login_log — the same automatic, heartbeat-
+// driven presence tracking used on Team Overview — rather than the manual
+// per-task time_tracking timer, which stays empty unless someone actually
+// clicks Start/Pause/Finish on a task.
+$wh_dow        = (int)date('N', strtotime($today)); // 1=Mon..7=Sun
+$wh_week_start = date('Y-m-d', strtotime($today . ' -' . ($wh_dow - 1) . ' days'));
+$wh_week_end   = date('Y-m-d', strtotime($wh_week_start . ' +6 days'));
+$wh_month_start = date('Y-m-01');
+$wh_month_end   = date('Y-m-t');
+
+$whStmt = db()->prepare("SELECT ROUND(COALESCE(SUM(active_seconds),0)/3600, 1) FROM emp_login_log WHERE employee_id=? AND login_date BETWEEN ? AND ?");
+try {
+    $whStmt->execute([$eid, $today, $today]);
+    $daily_hours = (float)$whStmt->fetchColumn();
+
+    $whStmt->execute([$eid, $wh_week_start, $wh_week_end]);
+    $weekly_hours = (float)$whStmt->fetchColumn();
+
+    $whStmt->execute([$eid, $wh_month_start, $wh_month_end]);
+    $monthly_hours = (float)$whStmt->fetchColumn();
+} catch (PDOException $e) {
+    // sql/activity_tracking.sql migration not applied yet
+    $daily_hours = $weekly_hours = $monthly_hours = 0.0;
+}
+
 // ── Checklist ──────────────────────────────────────────────
 generate_daily_checklist($eid, $today);
 $checklist = db()->prepare("
@@ -377,6 +403,36 @@ $error   = get_flash('error');
           <div class="card-label">On-Time Rate</div>
           <div class="card-value"><?= $att_pct ?>%</div>
           <div class="progress-bar-wrap"><div class="progress-bar <?= $att_pct >= 80 ? 'bar-green' : 'bar-red' ?>" style="width:<?= $att_pct ?>%"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- My Working Hours -->
+    <div class="section-label"><i class="fa fa-business-time" style="margin-right:.4rem"></i>My Working Hours</div>
+    <div class="cards-row">
+      <div class="card card-stat">
+        <div class="card-icon"><i class="fa fa-calendar-day"></i></div>
+        <div class="card-body">
+          <div class="card-label">Daily Working Hours</div>
+          <div class="card-value" style="<?= $daily_hours >= 6 ? 'color:var(--clr-success)' : '' ?>"><?= $daily_hours ?>h</div>
+          <small>Minimum 6 hours per day</small>
+        </div>
+      </div>
+
+      <div class="card card-stat">
+        <div class="card-icon"><i class="fa fa-calendar-week"></i></div>
+        <div class="card-body">
+          <div class="card-label">Weekly Working Hours</div>
+          <div class="card-value" style="<?= $weekly_hours >= 30 ? 'color:var(--clr-success)' : '' ?>"><?= $weekly_hours ?>h</div>
+          <small>Minimum 30 hours per week</small>
+        </div>
+      </div>
+
+      <div class="card card-stat">
+        <div class="card-icon"><i class="fa fa-calendar"></i></div>
+        <div class="card-body">
+          <div class="card-label">Monthly Working Hours</div>
+          <div class="card-value"><?= $monthly_hours ?>h</div>
         </div>
       </div>
     </div>
