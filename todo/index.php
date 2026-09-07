@@ -322,18 +322,30 @@ $error   = get_flash('error');
     <?php if ($success): ?><div class="alert alert-success"><i class="fa fa-check-circle"></i> <?= h($success) ?></div><?php endif; ?>
     <?php if ($error):   ?><div class="alert alert-danger"><i class="fa fa-exclamation-circle"></i> <?= h($error) ?></div><?php endif; ?>
 
-    <!-- Company Announcements -->
-    <?php foreach ($announcements as $a): ?>
-    <div class="announcement-banner" id="announcement-<?= $a['id'] ?>">
-      <div class="announcement-icon"><i class="fa fa-bullhorn"></i></div>
-      <div class="announcement-body">
-        <div class="announcement-title"><?= h($a['title']) ?></div>
-        <div class="announcement-text"><?= nl2br(h($a['message'])) ?></div>
-        <div class="announcement-meta"><?= h($a['author_name']) ?> · <?= date('d M Y, h:i A', strtotime($a['created_at'])) ?></div>
+    <!-- Company Announcements Popup — must be dismissed before the
+         dashboard behind it can be used -->
+    <?php if ($announcements): ?>
+    <div class="announce-overlay" id="announcement-popup">
+      <?php foreach ($announcements as $i => $a): ?>
+      <div class="announce-box announce-slide" data-index="<?= $i ?>" data-id="<?= $a['id'] ?>" style="<?= $i === 0 ? '' : 'display:none' ?>">
+        <div class="announce-head">
+          <div class="announce-icon"><i class="fa fa-bullhorn"></i></div>
+          <h3><?= h($a['title']) ?></h3>
+        </div>
+        <div class="announce-body">
+          <div class="announce-text"><?= nl2br(h($a['message'])) ?></div>
+          <div class="announce-meta"><?= h($a['author_name']) ?> · <?= date('d M Y, h:i A', strtotime($a['created_at'])) ?></div>
+        </div>
+        <div class="announce-foot">
+          <span class="announce-counter"><?= count($announcements) > 1 ? ($i + 1) . ' of ' . count($announcements) : '' ?></span>
+          <button type="button" class="btn btn-primary" onclick="dismissAnnouncementPopup(this)">
+            <?= $i === count($announcements) - 1 ? 'Got it' : 'Got it, next' ?> <i class="fa fa-arrow-right"></i>
+          </button>
+        </div>
       </div>
-      <button type="button" class="announcement-dismiss" onclick="dismissAnnouncement(<?= $a['id'] ?>)" aria-label="Dismiss"><i class="fa fa-xmark"></i></button>
+      <?php endforeach; ?>
     </div>
-    <?php endforeach; ?>
+    <?php endif; ?>
 
     <!-- Welcome Banner -->
     <?php
@@ -645,15 +657,30 @@ async function toggleCheck(id) {
   if (data.ok) location.reload();
 }
 
-// Dismiss a company announcement banner
-async function dismissAnnouncement(id) {
-  const el = document.getElementById('announcement-' + id);
-  if (el) { el.style.opacity = '0'; setTimeout(() => el.remove(), 200); }
-  await fetch('/api/announcement_dismiss.php', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({id})
-  });
+// Step through the Company Announcements popup — each one must be
+// acknowledged before the next (or the dashboard) is shown.
+async function dismissAnnouncementPopup(btn) {
+  const slide = btn.closest('.announce-slide');
+  const id    = parseInt(slide.dataset.id, 10);
+  const idx   = parseInt(slide.dataset.index, 10);
+  btn.disabled = true;
+
+  try {
+    await fetch('/api/announcement_dismiss.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id })
+    });
+  } catch (e) {}
+
+  const next = document.querySelector('.announce-slide[data-index="' + (idx + 1) + '"]');
+  if (next) {
+    slide.style.display = 'none';
+    next.style.display = '';
+  } else {
+    const overlay = document.getElementById('announcement-popup');
+    if (overlay) overlay.remove();
+  }
 }
 </script>
 </body>
