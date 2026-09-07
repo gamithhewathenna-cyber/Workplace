@@ -7,7 +7,20 @@ if (!is_manager()) redirect('/todo/index.php');
 $stat_employees = (int)db()->query("SELECT COUNT(*) FROM employees WHERE status='active'")->fetchColumn();
 $stat_open      = (int)db()->query("SELECT COUNT(*) FROM tasks WHERE status NOT IN ('completed','cancelled')")->fetchColumn();
 $stat_progress  = (int)db()->query("SELECT COUNT(*) FROM tasks WHERE status='in_progress'")->fetchColumn();
-$stat_live      = (int)db()->query("SELECT COUNT(DISTINCT employee_id) FROM time_tracking WHERE status='running'")->fetchColumn();
+
+// "Working Now" reflects who's actually logged in and active right now
+// (the same heartbeat-driven presence tracking as Today's Activity below),
+// not just who happens to have a task timer running — most people never
+// click Start/Pause/Finish on a task, so that undercounted almost everyone.
+try {
+    $stat_live = (int)db()->query("
+        SELECT COUNT(*) FROM emp_login_log
+        WHERE login_date = CURDATE() AND presence_status = 'active'
+    ")->fetchColumn();
+} catch (PDOException $e) {
+    // sql/activity_tracking.sql migration not applied yet
+    $stat_live = (int)db()->query("SELECT COUNT(DISTINCT employee_id) FROM time_tracking WHERE status='running'")->fetchColumn();
+}
 
 // ── People with running timers right now ───────────────────
 $live_sessions = db()->query("
