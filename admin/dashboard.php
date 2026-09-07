@@ -45,6 +45,36 @@ try {
     // sql/activity_tracking.sql migration not applied yet
     $presence = [];
 }
+
+// ── This month's total working hours per employee ───────────
+// Sums active_seconds from emp_login_log — the same automatic, heartbeat-
+// driven presence tracking used above for today's Active hours — rolled
+// up across the whole month. See admin/reports.php for the original.
+$curMonthStart = date('Y-m-01');
+$curMonthEnd   = date('Y-m-t');
+
+$hoursEmployees = db()->query("SELECT id, name, position FROM employees WHERE status='active' ORDER BY name ASC")->fetchAll();
+
+$hoursStmt = db()->prepare("
+    SELECT ROUND(COALESCE(SUM(active_seconds), 0) / 3600, 1)
+    FROM emp_login_log
+    WHERE employee_id = ? AND login_date BETWEEN ? AND ?
+");
+
+$monthlyHours = [];
+foreach ($hoursEmployees as $he) {
+    try {
+        $hoursStmt->execute([$he['id'], $curMonthStart, $curMonthEnd]);
+        $hours = (float)$hoursStmt->fetchColumn();
+    } catch (PDOException $e) {
+        $hours = 0.0; // sql/activity_tracking.sql migration not applied yet
+    }
+    $monthlyHours[] = [
+        'name'          => $he['name'],
+        'position'      => $he['position'],
+        'working_hours' => $hours,
+    ];
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -143,6 +173,40 @@ a.live-card:visited {
 .presence-offline     { background: #3f3f46; }
 .presence-label { font-size: .78rem; font-weight: 600; }
 .progress-cell { display: flex; align-items: center; gap: .5rem; white-space: nowrap; }
+
+/* ── Working Hours cards ── */
+.hours-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.75rem;
+}
+.hours-card {
+  background: var(--clr-surface);
+  border: 1px solid rgba(0,0,0,.04);
+  border-radius: 18px;
+  padding: 1.25rem;
+  box-shadow: var(--shadow);
+  display: flex;
+  align-items: center;
+  gap: .9rem;
+  transition: var(--transition);
+}
+.hours-card:hover { box-shadow: var(--shadow-lg); transform: translateY(-2px); }
+.hours-avatar {
+  width: 46px; height: 46px;
+  border-radius: 50%;
+  background: var(--clr-primary-light);
+  color: var(--clr-primary);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 1rem;
+  flex-shrink: 0;
+}
+.hours-name { font-weight: 600; color: var(--clr-text); font-size: .92rem; }
+.hours-pos  { font-size: .74rem; color: var(--clr-muted); margin-top: .1rem; }
+.hours-value { margin-left: auto; text-align: right; }
+.hours-value .num { font-size: 1.3rem; font-weight: 700; color: var(--clr-primary); line-height: 1; }
+.hours-value .lbl { font-size: .68rem; color: var(--clr-muted); text-transform: uppercase; letter-spacing: .04em; margin-top: .2rem; }
 </style>
 </head>
 <body>
@@ -271,6 +335,34 @@ a.live-card:visited {
             <?php endif; ?>
           </tbody>
         </table>
+      </div>
+    </section>
+
+    <!-- This Month's Working Hours -->
+    <section class="section-card">
+      <div class="section-header">
+        <h2><i class="fa fa-hourglass-half"></i> Working Hours — <?= date('F Y') ?></h2>
+        <span class="badge badge-info"><?= count($monthlyHours) ?> employees</span>
+      </div>
+      <div class="hours-grid">
+        <?php foreach ($monthlyHours as $mh):
+            $initials = strtoupper(substr($mh['name'], 0, 1));
+        ?>
+        <div class="hours-card">
+          <div class="hours-avatar"><?= h($initials) ?></div>
+          <div>
+            <div class="hours-name"><?= h($mh['name']) ?></div>
+            <div class="hours-pos"><?= h($mh['position'] ?? '') ?></div>
+          </div>
+          <div class="hours-value">
+            <div class="num"><?= $mh['working_hours'] ?>h</div>
+            <div class="lbl">Working Hours</div>
+          </div>
+        </div>
+        <?php endforeach; ?>
+        <?php if (!$monthlyHours): ?>
+          <p class="text-center text-muted" style="grid-column:1/-1">No active employees.</p>
+        <?php endif; ?>
       </div>
     </section>
 
