@@ -25,9 +25,11 @@ if (($_GET['export'] ?? '') === 'csv') {
 $employees = db()->query("SELECT id, name FROM employees WHERE status='active' ORDER BY name")->fetchAll();
 
 // ── This month's total working hours per employee ───────────
-// Counts finished sessions as stored, and also credits sessions still
-// running/paused today using their live elapsed time — otherwise anyone
-// who hasn't clicked "Finish" yet on their current task shows 0.
+// Sums active_seconds from emp_login_log — the same automatic, heartbeat-
+// driven presence tracking that powers Team Overview's daily Active hours
+// (see admin/dashboard.php) — rolled up across the whole month. The old
+// version summed the manual per-task time_tracking timer instead, which
+// stayed at 0 for anyone who doesn't click Start/Pause/Finish on tasks.
 // Run per-employee (like the working-days/leave lookups elsewhere) rather
 // than a single GROUP BY query, to keep the aggregation simple and correct.
 $curMonthStart = date('Y-m-01');
@@ -36,25 +38,23 @@ $curMonthEnd   = date('Y-m-t');
 $hoursEmployees = db()->query("SELECT id, name, position FROM employees WHERE status='active' ORDER BY name ASC")->fetchAll();
 
 $hoursStmt = db()->prepare("
-    SELECT ROUND(COALESCE(SUM(
-        CASE
-            WHEN status = 'finished' THEN total_seconds - break_seconds
-            WHEN status = 'running'  THEN GREATEST(0, TIMESTAMPDIFF(SECOND, started_at, NOW()) - break_seconds)
-            WHEN status = 'paused'   THEN GREATEST(0, TIMESTAMPDIFF(SECOND, started_at, paused_at) - break_seconds)
-            ELSE 0
-        END
-    ), 0) / 3600, 1)
-    FROM time_tracking
-    WHERE employee_id = ? AND DATE(started_at) BETWEEN ? AND ?
+    SELECT ROUND(COALESCE(SUM(active_seconds), 0) / 3600, 1)
+    FROM emp_login_log
+    WHERE employee_id = ? AND login_date BETWEEN ? AND ?
 ");
 
 $monthlyHours = [];
 foreach ($hoursEmployees as $he) {
-    $hoursStmt->execute([$he['id'], $curMonthStart, $curMonthEnd]);
+    try {
+        $hoursStmt->execute([$he['id'], $curMonthStart, $curMonthEnd]);
+        $hours = (float)$hoursStmt->fetchColumn();
+    } catch (PDOException $e) {
+        $hours = 0.0; // sql/activity_tracking.sql migration not applied yet
+    }
     $monthlyHours[] = [
         'name'          => $he['name'],
         'position'      => $he['position'],
-        'working_hours' => (float)$hoursStmt->fetchColumn(),
+        'working_hours' => $hours,
     ];
 }
 
