@@ -69,7 +69,7 @@ $curMonthEnd   = date('Y-m-t');
 $hoursEmployees = db()->query("SELECT id, name, position FROM employees WHERE status='active' ORDER BY name ASC")->fetchAll();
 
 $hoursStmt = db()->prepare("
-    SELECT ROUND(COALESCE(SUM(active_seconds), 0) / 3600, 1)
+    SELECT COALESCE(SUM(active_seconds), 0)
     FROM emp_login_log
     WHERE employee_id = ? AND login_date BETWEEN ? AND ?
 ");
@@ -78,14 +78,14 @@ $monthlyHours = [];
 foreach ($hoursEmployees as $he) {
     try {
         $hoursStmt->execute([$he['id'], $curMonthStart, $curMonthEnd]);
-        $hours = (float)$hoursStmt->fetchColumn();
+        $seconds = (int)$hoursStmt->fetchColumn();
     } catch (PDOException $e) {
-        $hours = 0.0; // sql/activity_tracking.sql migration not applied yet
+        $seconds = 0; // sql/activity_tracking.sql migration not applied yet
     }
     $monthlyHours[] = [
         'name'          => $he['name'],
         'position'      => $he['position'],
-        'working_hours' => $hours,
+        'working_hours' => fmt_hm($seconds),
     ];
 }
 ?>
@@ -368,7 +368,7 @@ a.live-card:visited {
             <div class="hours-pos"><?= h($mh['position'] ?? '') ?></div>
           </div>
           <div class="hours-value">
-            <div class="num"><?= $mh['working_hours'] ?>h</div>
+            <div class="num"><?= $mh['working_hours'] ?></div>
             <div class="lbl">Working Hours</div>
           </div>
         </div>

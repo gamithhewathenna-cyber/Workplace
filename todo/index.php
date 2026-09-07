@@ -39,20 +39,23 @@ $wh_week_end   = date('Y-m-d', strtotime($wh_week_start . ' +6 days'));
 $wh_month_start = date('Y-m-01');
 $wh_month_end   = date('Y-m-t');
 
-$whStmt = db()->prepare("SELECT ROUND(COALESCE(SUM(active_seconds),0)/3600, 1) FROM emp_login_log WHERE employee_id=? AND login_date BETWEEN ? AND ?");
+$whStmt = db()->prepare("SELECT COALESCE(SUM(active_seconds),0) FROM emp_login_log WHERE employee_id=? AND login_date BETWEEN ? AND ?");
 try {
     $whStmt->execute([$eid, $today, $today]);
-    $daily_hours = (float)$whStmt->fetchColumn();
+    $daily_seconds = (int)$whStmt->fetchColumn();
 
     $whStmt->execute([$eid, $wh_week_start, $wh_week_end]);
-    $weekly_hours = (float)$whStmt->fetchColumn();
+    $weekly_seconds = (int)$whStmt->fetchColumn();
 
     $whStmt->execute([$eid, $wh_month_start, $wh_month_end]);
-    $monthly_hours = (float)$whStmt->fetchColumn();
+    $monthly_seconds = (int)$whStmt->fetchColumn();
 } catch (PDOException $e) {
     // sql/activity_tracking.sql migration not applied yet
-    $daily_hours = $weekly_hours = $monthly_hours = 0.0;
+    $daily_seconds = $weekly_seconds = $monthly_seconds = 0;
 }
+$daily_hours   = fmt_hm($daily_seconds);
+$weekly_hours  = fmt_hm($weekly_seconds);
+$monthly_hours = fmt_hm($monthly_seconds);
 
 // ── Checklist ──────────────────────────────────────────────
 generate_daily_checklist($eid, $today);
@@ -426,7 +429,7 @@ $error   = get_flash('error');
         <div class="card-icon"><i class="fa fa-calendar-day"></i></div>
         <div class="card-body">
           <div class="card-label">Daily Working Hours</div>
-          <div class="card-value" style="<?= $daily_hours >= 6 ? 'color:var(--clr-success)' : '' ?>"><?= $daily_hours ?>h</div>
+          <div class="card-value" style="<?= $daily_seconds >= 6 * 3600 ? 'color:var(--clr-success)' : '' ?>"><?= $daily_hours ?></div>
           <small>Minimum 6 hours per day</small>
         </div>
       </div>
@@ -435,7 +438,7 @@ $error   = get_flash('error');
         <div class="card-icon"><i class="fa fa-calendar-week"></i></div>
         <div class="card-body">
           <div class="card-label">Weekly Working Hours</div>
-          <div class="card-value" style="<?= $weekly_hours >= 30 ? 'color:var(--clr-success)' : '' ?>"><?= $weekly_hours ?>h</div>
+          <div class="card-value" style="<?= $weekly_seconds >= 30 * 3600 ? 'color:var(--clr-success)' : '' ?>"><?= $weekly_hours ?></div>
           <small>Minimum 30 hours per week</small>
         </div>
       </div>
@@ -444,7 +447,7 @@ $error   = get_flash('error');
         <div class="card-icon"><i class="fa fa-calendar"></i></div>
         <div class="card-body">
           <div class="card-label">Monthly Working Hours</div>
-          <div class="card-value"><?= $monthly_hours ?>h</div>
+          <div class="card-value"><?= $monthly_hours ?></div>
         </div>
       </div>
     </div>
