@@ -382,6 +382,25 @@ body { font-family: var(--font); background: var(--clr-bg); color: var(--clr-tex
 .card-login.on_time .card-icon { background: rgba(39,174,96,.12); color: var(--clr-success); }
 .card-login.late    .card-icon { background: rgba(243,156,18,.12); color: var(--clr-warning); }
 
+/* ── Stat cards (horizontal summary row) ─────────────────── */
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.75rem;
+}
+.stat-card {
+  background: var(--clr-surface);
+  border-radius: var(--radius);
+  border: 1px solid rgba(0,0,0,.04);
+  padding: 1.25rem;
+  box-shadow: var(--shadow);
+  transition: var(--transition);
+}
+.stat-card:hover { box-shadow: var(--shadow-lg); transform: translateY(-2px); }
+.stat-value { font-size: 1.65rem; font-weight: 700; line-height: 1.1; color: var(--clr-text); margin-bottom: .35rem; }
+.stat-label { font-size: .78rem; color: var(--clr-muted); font-weight: 500; }
+
 /* ── Section Cards ───────────────────────────────────────── */
 .section-card {
   background: var(--clr-surface);
@@ -1022,11 +1041,13 @@ body.chat-panel-open .chat-windows-container { right: 23.5rem; }
   .form-grid { grid-template-columns: 1fr; }
   .span-2 { grid-column: span 1; }
   .cards-row { grid-template-columns: 1fr 1fr; }
+  .stats-row { grid-template-columns: 1fr 1fr; }
   .calendar-grid { font-size: .7rem; }
   .cal-cell { min-height: 55px; }
 }
 @media (max-width: 480px) {
   .cards-row { grid-template-columns: 1fr; }
+  .stats-row { grid-template-columns: 1fr; }
   .page-header { flex-direction: column; align-items: flex-start; }
   .two-col { grid-template-columns: 1fr; }
 }
