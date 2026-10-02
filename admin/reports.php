@@ -29,12 +29,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_section'] ?? '') === 'sen
         $sendMonth = $hoursCurrentMonth;
     }
     $sendMonthStart = $sendMonth . '-01';
-    $sentCount = time_reports_run_send($sendMonthStart);
-    flash($sentCount > 0 ? 'success' : 'error',
-        $sentCount > 0
-            ? 'Sent ' . $sentCount . ' time report(s) for ' . date('F Y', strtotime($sendMonthStart)) . '.'
-            : 'No reports were sent for ' . date('F Y', strtotime($sendMonthStart)) . ' — check Settings → SMTP Email Configuration.'
-    );
+    $results = time_reports_run_send($sendMonthStart);
+    $sentCount = count(array_filter($results, fn($r) => $r['ok']));
+    $failed    = array_filter($results, fn($r) => !$r['ok']);
+
+    flash('success', 'Sent ' . $sentCount . ' of ' . count($results) . ' time report(s) for ' . date('F Y', strtotime($sendMonthStart)) . '.');
+    if ($failed) {
+        flash('error', 'Failed: ' . implode(', ', array_map(fn($r) => $r['name'] . ' (' . $r['error'] . ')', $failed)));
+    }
     redirect('reports.php?' . http_build_query(array_merge($_GET, ['hours_month' => $sendMonth])));
 }
 

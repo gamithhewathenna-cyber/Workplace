@@ -589,13 +589,26 @@ function send_monthly_time_report(int $eid, string $monthStart): bool {
     return send_mail($emp['email'], $emp['name'], $subject, $html, true, time_report_cc_emails());
 }
 
-function time_reports_run_send(string $monthStart): int {
-    $employees = db()->query("SELECT id FROM employees WHERE status='active'")->fetchAll(PDO::FETCH_COLUMN);
-    $sent = 0;
-    foreach ($employees as $eid) {
-        if (send_monthly_time_report((int)$eid, $monthStart)) $sent++;
+// Sends every active employee's monthly time report and returns a
+// per-employee result so failures (bad/missing email, SMTP rejection,
+// etc.) can be surfaced to the admin instead of only a bare count.
+function time_reports_run_send(string $monthStart): array {
+    $employees = db()->query("SELECT id, name, email FROM employees WHERE status='active' ORDER BY name ASC")->fetchAll();
+    $results = [];
+    foreach ($employees as $emp) {
+        if (!$emp['email']) {
+            $results[] = ['name' => $emp['name'], 'email' => '', 'ok' => false, 'error' => 'No email on file'];
+            continue;
+        }
+        $ok = send_monthly_time_report((int)$emp['id'], $monthStart);
+        $results[] = [
+            'name'  => $emp['name'],
+            'email' => $emp['email'],
+            'ok'    => $ok,
+            'error' => $ok ? '' : (get_mail_error() ?: 'Send failed'),
+        ];
     }
-    return $sent;
+    return $results;
 }
 
 // Automatically emails every active employee their previous month's time
@@ -613,7 +626,8 @@ function time_reports_maybe_send(): void {
     $prevMonthStart = date('Y-m-01', strtotime('first day of last month'));
     if (get_setting('time_reports_last_sent_month', '') === $prevMonthStart) return;
 
-    $sent = time_reports_run_send($prevMonthStart);
+    $results = time_reports_run_send($prevMonthStart);
+    $sent = count(array_filter($results, fn($r) => $r['ok']));
     if ($sent > 0) {
         set_setting('time_reports_last_sent_month', $prevMonthStart);
     }

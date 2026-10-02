@@ -56,8 +56,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Send Monthly Time Reports Now (previous month)
     if ($section === 'time_report_send_now') {
         $prevMonthStart = date('Y-m-01', strtotime('first day of last month'));
-        $sent = time_reports_run_send($prevMonthStart);
-        $success = 'Sent ' . $sent . ' time report(s) for ' . date('F Y', strtotime($prevMonthStart)) . '.';
+        $results = time_reports_run_send($prevMonthStart);
+        $sent    = count(array_filter($results, fn($r) => $r['ok']));
+        $failed  = array_filter($results, fn($r) => !$r['ok']);
+        $success = 'Sent ' . $sent . ' of ' . count($results) . ' time report(s) for ' . date('F Y', strtotime($prevMonthStart)) . '.';
+        if ($failed) {
+            $error = 'Failed: ' . implode(', ', array_map(fn($r) => $r['name'] . ' (' . $r['error'] . ')', $failed));
+        }
     }
 
     // Send Test Email
