@@ -15,6 +15,29 @@ $emp_id  = (int)($_GET['employee_id'] ?? 0);
 $start = "$year-" . sprintf('%02d', $month) . "-01";
 $end   = date('Y-m-t', strtotime($start));
 
+// ── Working Hours month selector (view a past month, defaults to current) ──
+$hoursCurrentMonth = date('Y-m');
+$hoursSelMonth = $_GET['hours_month'] ?? $hoursCurrentMonth;
+if (!preg_match('/^\d{4}-\d{2}$/', $hoursSelMonth) || $hoursSelMonth > $hoursCurrentMonth) {
+    $hoursSelMonth = $hoursCurrentMonth;
+}
+
+// ── Manually (re)send the monthly time report emails for that month ────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_section'] ?? '') === 'send_time_reports') {
+    $sendMonth = $_POST['hours_month'] ?? $hoursCurrentMonth;
+    if (!preg_match('/^\d{4}-\d{2}$/', $sendMonth) || $sendMonth > $hoursCurrentMonth) {
+        $sendMonth = $hoursCurrentMonth;
+    }
+    $sendMonthStart = $sendMonth . '-01';
+    $sentCount = time_reports_run_send($sendMonthStart);
+    flash($sentCount > 0 ? 'success' : 'error',
+        $sentCount > 0
+            ? 'Sent ' . $sentCount . ' time report(s) for ' . date('F Y', strtotime($sendMonthStart)) . '.'
+            : 'No reports were sent for ' . date('F Y', strtotime($sendMonthStart)) . ' — check Settings → SMTP Email Configuration.'
+    );
+    redirect('reports.php?' . http_build_query(array_merge($_GET, ['hours_month' => $sendMonth])));
+}
+
 // ── Export CSV ─────────────────────────────────────────────
 if (($_GET['export'] ?? '') === 'csv') {
     header('Content-Type: text/csv');
@@ -24,16 +47,16 @@ if (($_GET['export'] ?? '') === 'csv') {
 
 $employees = db()->query("SELECT id, name FROM employees WHERE status='active' ORDER BY name")->fetchAll();
 
-// ── This month's total working hours per employee ───────────
+// ── Selected month's total working hours per employee ────────
 // Sums active_seconds from emp_login_log — the same automatic, heartbeat-
 // driven presence tracking that powers Team Overview's daily Active hours
-// (see admin/dashboard.php) — rolled up across the whole month. The old
+// (see admin/dashboard.php) — rolled up across the selected month. The old
 // version summed the manual per-task time_tracking timer instead, which
 // stayed at 0 for anyone who doesn't click Start/Pause/Finish on tasks.
 // Run per-employee (like the working-days/leave lookups elsewhere) rather
 // than a single GROUP BY query, to keep the aggregation simple and correct.
-$curMonthStart = date('Y-m-01');
-$curMonthEnd   = date('Y-m-t');
+$curMonthStart = $hoursSelMonth . '-01';
+$curMonthEnd   = date('Y-m-t', strtotime($curMonthStart));
 
 $hoursEmployees = db()->query("SELECT id, name, position FROM employees WHERE status='active' ORDER BY name ASC")->fetchAll();
 
@@ -125,6 +148,9 @@ if (isset($out)) {
     fclose($out);
     exit;
 }
+
+$success = get_flash('success');
+$error   = get_flash('error');
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -183,11 +209,28 @@ if (isset($out)) {
       </div>
     </div>
 
-    <!-- This Month's Working Hours -->
+    <?php if ($success): ?><div class="alert alert-success"><i class="fa fa-check-circle"></i> <?= h($success) ?></div><?php endif; ?>
+    <?php if ($error):   ?><div class="alert alert-danger"><i class="fa fa-exclamation-circle"></i> <?= h($error) ?></div><?php endif; ?>
+
+    <!-- Working Hours (pick a month to view, and resend its report emails) -->
     <section class="section-card">
       <div class="section-header">
-        <h2><i class="fa fa-hourglass-half"></i> Working Hours — <?= date('F Y') ?></h2>
+        <h2><i class="fa fa-hourglass-half"></i> Working Hours — <?= date('F Y', strtotime($hoursSelMonth . '-01')) ?></h2>
         <span class="badge badge-info"><?= count($monthlyHours) ?> employees</span>
+      </div>
+      <div class="filter-bar" style="margin-bottom:1.25rem">
+        <form method="get" class="inline-form">
+          <?php foreach (['report','month','year','employee_id'] as $k): if (isset($_GET[$k])): ?>
+            <input type="hidden" name="<?= h($k) ?>" value="<?= h($_GET[$k]) ?>">
+          <?php endif; endforeach; ?>
+          <input type="month" name="hours_month" class="input" value="<?= h($hoursSelMonth) ?>" max="<?= h($hoursCurrentMonth) ?>">
+          <button type="submit" class="btn btn-outline"><i class="fa fa-search"></i> View</button>
+        </form>
+        <form method="post" onsubmit="return confirm('Email every active employee their time report for <?= h(date('F Y', strtotime($hoursSelMonth . '-01'))) ?> now?')">
+          <input type="hidden" name="_section" value="send_time_reports">
+          <input type="hidden" name="hours_month" value="<?= h($hoursSelMonth) ?>">
+          <button type="submit" class="btn btn-primary"><i class="fa fa-paper-plane"></i> Send Reports for <?= h(date('F Y', strtotime($hoursSelMonth . '-01'))) ?></button>
+        </form>
       </div>
       <div class="hours-grid">
         <?php foreach ($monthlyHours as $mh):
