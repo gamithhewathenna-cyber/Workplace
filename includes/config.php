@@ -588,20 +588,24 @@ function time_reports_run_send(string $monthStart): int {
 }
 
 // Automatically emails every active employee their previous month's time
-// report (CC'd to the admin) on the 1st of each month at/after 9 AM, once
-// per month. Runs opportunistically on page load like the other scheduled
-// jobs; cron/time_reports_send.php is the belt-and-suspenders companion
-// for reliability.
+// report (CC'd to the admin) once the calendar has moved into a new month.
+// Runs opportunistically on page load like the other scheduled jobs;
+// cron/time_reports_send.php is the belt-and-suspenders companion for
+// reliability. Deliberately doesn't require it to be exactly the 1st or a
+// specific hour — "last month" is always already over by the time this
+// runs, so it just needs the next page load of the new month, whenever
+// that happens, to catch up. Only marks the month as sent once at least
+// one email actually went out, so a transient SMTP failure (rather than
+// "nobody visited the portal yet") gets retried on the next page load
+// instead of silently being treated as done.
 function time_reports_maybe_send(): void {
-    $now = new DateTime();
-    if ((int)$now->format('j') !== 1) return; // only on the 1st of the month
-    if ((int)$now->format('H') < 9) return;    // at/after 9 AM
-
     $prevMonthStart = date('Y-m-01', strtotime('first day of last month'));
     if (get_setting('time_reports_last_sent_month', '') === $prevMonthStart) return;
-    set_setting('time_reports_last_sent_month', $prevMonthStart);
 
-    time_reports_run_send($prevMonthStart);
+    $sent = time_reports_run_send($prevMonthStart);
+    if ($sent > 0) {
+        set_setting('time_reports_last_sent_month', $prevMonthStart);
+    }
 }
 
 // Run login tracking on every page load if logged in

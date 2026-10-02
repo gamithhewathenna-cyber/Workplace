@@ -2,16 +2,17 @@
 /**
  * cron/time_reports_send.php
  * Emails every active employee their previous month's time report (CC'd to
- * the admin) on the 1st of each month at/after 9 AM.
+ * the admin) once the calendar has moved into a new month.
  *
- * Recommended: cPanel → Cron Jobs → run e.g. once daily around 9 AM:
+ * Recommended: cPanel → Cron Jobs → run e.g. once daily:
  *   php /home/YOURUSER/public_html/cron/time_reports_send.php
  *
  * This is a belt-and-suspenders companion to the automatic send that
  * already runs opportunistically whenever anyone is logged into the portal
  * (see time_reports_maybe_send() in includes/config.php) — you do NOT have
  * to set up this cron job for it to work, but it guarantees the report goes
- * out on the 1st even if nobody logs in that day.
+ * out even on months nobody happens to log in right after the 1st, and it
+ * will keep retrying on each run if a prior attempt failed to send.
  */
 require_once __DIR__ . '/../includes/config.php';
 
