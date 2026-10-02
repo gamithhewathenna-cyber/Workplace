@@ -65,6 +65,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    // Send a test of the time report template — previous month, your own
+    // data, to your own email only. Doesn't touch any other employee.
+    if ($section === 'time_report_test') {
+        $prevMonthStart = date('Y-m-01', strtotime('first day of last month'));
+        $ok = send_test_time_report(current_employee_id(), $prevMonthStart);
+        if ($ok) {
+            $success = 'Test report sent to your email.';
+        } else {
+            $error = 'Test report failed: ' . (get_mail_error() ?: 'unknown error');
+        }
+    }
+
     // Send Test Email
     if ($section === 'smtp_test') {
         $to = trim($_POST['test_email'] ?? '');
@@ -468,9 +480,15 @@ $logo_url = $cfg['company_logo']
             <div class="fg"><label>Admin CC Email <small style="color:var(--clr-muted)">(optional, comma-separated)</small></label><input type="email" name="time_report_cc_email" value="<?= h($cfg['time_report_cc_email']) ?>" placeholder="defaults to every admin's email"></div>
             <div class="save-row"><button class="btn btn-primary btn-sm" type="submit"><i class="fa fa-save"></i> Save</button></div>
           </form>
-          <form method="post" onsubmit="return confirm('Email every active employee their time report for last month now?')">
+          <form method="post" onsubmit="return confirm('Email every active employee their time report for last month now?')" style="display:inline-block;margin-right:.5rem">
             <input type="hidden" name="_section" value="time_report_send_now">
             <button class="btn btn-outline btn-sm" type="submit"><i class="fa fa-paper-plane"></i> Send Now for <?= date('F Y', strtotime('first day of last month')) ?></button>
+          </form>
+          <form method="post" style="display:inline-block">
+            <input type="hidden" name="_section" value="time_report_test">
+            <button class="btn btn-ghost btn-sm" type="submit" title="Sends last month's report, built from your own data, to your own email only — nobody else is emailed">
+              <i class="fa fa-vial"></i> Send Test Report (to me only)
+            </button>
           </form>
         </div>
       </div>

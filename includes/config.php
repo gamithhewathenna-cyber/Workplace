@@ -589,6 +589,22 @@ function send_monthly_time_report(int $eid, string $monthStart): bool {
     return send_mail($emp['email'], $emp['name'], $subject, $html, true, time_report_cc_emails());
 }
 
+// Sends a one-off preview of the monthly time report template, built from
+// the given admin's own data, to that admin's own email only — no CC, no
+// other employees — so delivery/rendering can be verified without emailing
+// the whole company. Returns false if sending fails (check get_mail_error()).
+function send_test_time_report(int $adminEid, string $monthStart): bool {
+    $admin = db()->prepare("SELECT name, email FROM employees WHERE id=?");
+    $admin->execute([$adminEid]);
+    $admin = $admin->fetch();
+    if (!$admin || !$admin['email']) return false;
+
+    $html = build_time_report_email($adminEid, $monthStart);
+    $subject = '[TEST] Your Time Report — ' . date('F Y', strtotime($monthStart));
+
+    return send_mail($admin['email'], $admin['name'], $subject, $html, true, []);
+}
+
 // Sends every active employee's monthly time report and returns a
 // per-employee result so failures (bad/missing email, SMTP rejection,
 // etc.) can be surfaced to the admin instead of only a bare count.

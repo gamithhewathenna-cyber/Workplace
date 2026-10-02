@@ -40,6 +40,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_section'] ?? '') === 'sen
     redirect('reports.php?' . http_build_query(array_merge($_GET, ['hours_month' => $sendMonth])));
 }
 
+// ── Send a test of the time report template — selected month, your own
+// data, to your own email only. Doesn't touch any other employee. ──────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_section'] ?? '') === 'test_time_report') {
+    $testMonth = $_POST['hours_month'] ?? $hoursCurrentMonth;
+    if (!preg_match('/^\d{4}-\d{2}$/', $testMonth) || $testMonth > $hoursCurrentMonth) {
+        $testMonth = $hoursCurrentMonth;
+    }
+    $testMonthStart = $testMonth . '-01';
+    $ok = send_test_time_report(current_employee_id(), $testMonthStart);
+    flash($ok ? 'success' : 'error',
+        $ok ? 'Test report sent to your email.' : 'Test report failed: ' . (get_mail_error() ?: 'unknown error'));
+    redirect('reports.php?' . http_build_query(array_merge($_GET, ['hours_month' => $testMonth])));
+}
+
 // ── Export CSV ─────────────────────────────────────────────
 if (($_GET['export'] ?? '') === 'csv') {
     header('Content-Type: text/csv');
@@ -232,6 +246,13 @@ $error   = get_flash('error');
           <input type="hidden" name="_section" value="send_time_reports">
           <input type="hidden" name="hours_month" value="<?= h($hoursSelMonth) ?>">
           <button type="submit" class="btn btn-primary"><i class="fa fa-paper-plane"></i> Send Reports for <?= h(date('F Y', strtotime($hoursSelMonth . '-01'))) ?></button>
+        </form>
+        <form method="post">
+          <input type="hidden" name="_section" value="test_time_report">
+          <input type="hidden" name="hours_month" value="<?= h($hoursSelMonth) ?>">
+          <button type="submit" class="btn btn-ghost" title="Sends this month's report, built from your own data, to your own email only — nobody else is emailed">
+            <i class="fa fa-vial"></i> Send Test Report (to me only)
+          </button>
         </form>
       </div>
       <div class="hours-grid">
