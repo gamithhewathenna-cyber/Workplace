@@ -490,7 +490,7 @@ function build_time_report_email(int $eid, string $monthStart): string {
     $monthEnd = date('Y-m-t', strtotime($monthStart));
 
     $logins = db()->prepare("
-        SELECT login_date, first_login, status, minutes_late
+        SELECT login_date, first_login, status, minutes_late, COALESCE(active_seconds, 0) AS active_seconds
         FROM emp_login_log
         WHERE employee_id = ? AND login_date BETWEEN ? AND ?
           AND DAYOFWEEK(login_date) BETWEEN 2 AND 6
@@ -498,6 +498,7 @@ function build_time_report_email(int $eid, string $monthStart): string {
     ");
     $logins->execute([$eid, $monthStart, $monthEnd]);
     $loginRows = $logins->fetchAll();
+    $totalActiveSeconds = array_sum(array_column($loginRows, 'active_seconds'));
 
     $workingDays = working_days($monthStart, $monthEnd);
     $workingDays = max(0, $workingDays - employee_leave_days($eid, $monthStart, $monthEnd));
@@ -516,11 +517,13 @@ function build_time_report_email(int $eid, string $monthStart): string {
         ORDER BY tt.started_at ASC
     ");
     $logs->execute([$eid, $monthStart, $monthEnd]);
-    $timeLogs   = $logs->fetchAll();
-    $totalHours = array_sum(array_column($timeLogs, 'hours'));
+    $timeLogs = $logs->fetchAll();
 
     $td = 'style="padding:.4rem .6rem;border-bottom:1px solid #222;font-size:.82rem;color:#d0d0d0"';
     $th = 'style="padding:.4rem .6rem;border-bottom:1px solid #333;font-size:.72rem;color:#888;text-align:left;text-transform:uppercase;letter-spacing:.04em"';
+
+    $tdTotal      = 'style="padding:.5rem .6rem;font-size:.82rem;color:#fff;font-weight:700;border-top:2px solid #333"';
+    $tdTotalLabel = 'style="padding:.5rem .6rem;font-size:.82rem;color:#fff;font-weight:700;border-top:2px solid #333;text-align:right"';
 
     $loginRowsHtml = '';
     foreach ($loginRows as $r) {
@@ -531,9 +534,17 @@ function build_time_report_email(int $eid, string $monthStart): string {
             . '<td ' . $td . '>' . date('d M Y', strtotime($r['login_date'])) . '</td>'
             . '<td ' . $td . '>' . date('h:i A', strtotime($r['first_login'])) . '</td>'
             . '<td ' . $td . '>' . $statusHtml . '</td>'
+            . '<td ' . $td . '>' . fmt_hm((int)$r['active_seconds']) . '</td>'
             . '</tr>';
     }
-    if (!$loginRowsHtml) $loginRowsHtml = '<tr><td colspan="3" ' . $td . '>No login records this month.</td></tr>';
+    if (!$loginRowsHtml) {
+        $loginRowsHtml = '<tr><td colspan="4" ' . $td . '>No login records this month.</td></tr>';
+    } else {
+        $loginRowsHtml .= '<tr>'
+            . '<td colspan="3" ' . $tdTotalLabel . '>Total</td>'
+            . '<td ' . $tdTotal . '>' . fmt_hm($totalActiveSeconds) . '</td>'
+            . '</tr>';
+    }
 
     $logRowsHtml = '';
     foreach ($timeLogs as $log) {
@@ -550,11 +561,11 @@ function build_time_report_email(int $eid, string $monthStart): string {
         . '<strong style="color:#fff">' . $present . '/' . (int)$workingDays . '</strong> working days present &nbsp;·&nbsp; '
         . '<strong style="color:#4ade80">' . $onTime . '</strong> on time &nbsp;·&nbsp; '
         . '<strong style="color:#eab308">' . $late . '</strong> late &nbsp;·&nbsp; '
-        . '<strong style="color:#fff">' . round($totalHours, 1) . 'h</strong> total logged'
+        . '<strong style="color:#fff">' . fmt_hm($totalActiveSeconds) . '</strong> total working hours'
         . '</p>'
         . '<h3 style="font-size:.85rem;color:#c084fc;margin:1.5rem 0 .5rem">Login Time</h3>'
         . '<table width="100%" cellpadding="0" cellspacing="0"><thead><tr>'
-        . '<th ' . $th . '>Date</th><th ' . $th . '>Login Time</th><th ' . $th . '>Status</th>'
+        . '<th ' . $th . '>Date</th><th ' . $th . '>Login Time</th><th ' . $th . '>Status</th><th ' . $th . '>Hours</th>'
         . '</tr></thead><tbody>' . $loginRowsHtml . '</tbody></table>'
         . '<h3 style="font-size:.85rem;color:#c084fc;margin:1.5rem 0 .5rem">Time Log</h3>'
         . '<table width="100%" cellpadding="0" cellspacing="0"><thead><tr>'
